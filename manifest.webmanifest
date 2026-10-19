@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "暖心同行｜志工服務",
+  "short_name": "志工服務",
+  "description": "志工服務 PWA 示範版",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f8f6",
+  "theme_color": "#237c76",
+  "lang": "zh-Hant",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
