@@ -12,13 +12,13 @@ if(!data){data=seed();try{const old=JSON.parse(localStorage.getItem(LEGACY)||"nu
 for(const k of ["members","shifts","inventory","notices","messages"])data[k]||=[];
 for(const k of ["confirmations","reports"])data[k]||={};
 if(!data.members.some(m=>m.id===data.demoMember))data.demoMember=data.members[0]?.id||"";
-const save=()=>localStorage.setItem(KEY,JSON.stringify(data));
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){console.warn("無法儲存示範資料",e)}};
 let page=ADMIN?"overview":"today";
 const sid=(prefix)=>prefix+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const fmtSession=s=>s==="am"?"上午":"下午";
 const displayShift=s=>`${esc(s.date)} ${fmtSession(s.session)} ${esc(s.start)}–${esc(s.end)}`;
 const selected=()=>data.members.find(m=>m.id===data.demoMember);
-const assigned=()=>data.shifts.filter(s=>s.memberIds.includes(data.demoMember)).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
+const assigned=()=>data.shifts.filter(s=>(s.memberIds||[]).includes(data.demoMember)).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
 const thisDay=()=>assigned().filter(s=>s.date===today());
 const shiftStatus=(s,id=data.demoMember)=>data.reports[s.id]?.[id]?.status==="done"?"已完成":data.confirmations[s.id]?.[id]?"已確認":"待確認";
 const toast=t=>{const el=$("#toast");el.textContent=t;el.classList.add("show");clearTimeout(window._toast);window._toast=setTimeout(()=>el.classList.remove("show"),2600)};
@@ -76,6 +76,6 @@ function bind(){
  $("#exportJSON")?.addEventListener("click",()=>download("志工系統示範備份.json",JSON.stringify(data,null,2),"application/json"));
  $("#resetData")?.addEventListener("click",()=>{if(confirm("確定重設此瀏覽器的示範資料？")){data=seed();toast("已重設");render()}});
 }
-window.addEventListener("storage",e=>{if(e.key===KEY){try{data=JSON.parse(e.newValue)||seed();render()}catch{}}});
+window.__volunteerReady=true;window.addEventListener("storage",e=>{if(e.key===KEY){try{data=JSON.parse(e.newValue)||seed();render()}catch{}}});
 if("serviceWorker" in navigator&&location.protocol.startsWith("http"))window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").catch(console.warn));
 render();
