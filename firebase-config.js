@@ -1,6 +1,6 @@
 
 window.VOLUNTEER_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyA3mtjmD3Kuv1dP6d3Ir7moVpv508m_IJQ",
+  apiKey: "AIzaSyA3mtjmD3Kuv1dP6d3Ir7moVpv5O8m_IJQ",
   authDomain: "volunteer-care-9bb4b.firebaseapp.com",
   databaseURL: "https://volunteer-care-9bb4b-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "volunteer-care-9bb4b",
