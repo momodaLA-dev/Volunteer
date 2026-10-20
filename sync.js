@@ -14,10 +14,17 @@ const parseLines=s=>s.trim().split(/\r?\n/).filter(Boolean).map((line,i)=>{const
 // 正式版需改成專用身分驗證服務，支援限速、鎖定、重設、稽核及更強的幹部驗證。
 const codeToEmail = code => {
   const c=String(code||'').trim().toUpperCase();
-  if(!/^[AV][0-9]{3,8}$/.test(c))throw Error('代號格式不正確：志工例如 V001，幹部例如 A001');
+  if(!/^[AV][0-9]{4}$/.test(c))throw Error('代號格式不正確：例如 A0001、V0001');
   if(admin && !c.startsWith('A'))throw Error('幹部請使用 A 開頭的代號');
   if(!admin && !c.startsWith('V'))throw Error('志工請使用 V 開頭的代號');
-  return c.toLowerCase()+'@volunteer.example.com';
+  // 現階段只使用既有的三個測試帳號，避免前端自行拼接不受控的網域。
+  const accounts={
+    A0001:'a0001@gmail.com.tw',
+    V0001:'v0001@gmail.com',
+    V0002:'v0002@gmail.com'
+  };
+  if(!accounts[c])throw Error('此測試代號尚未建立帳號，請聯絡幹部');
+  return accounts[c];
 };
 const fmt=t=>t?new Date(t).toLocaleString('zh-TW',{hour12:false}):'—';
 $('#login').onclick=async()=>{try{const account=codeToEmail($('#volCode').value);const pin=$('#password').value;if(pin.length<6)throw Error('PIN 至少需要 6 碼');await auth.signInWithEmailAndPassword(account,pin);$('#password').value='';msg('登入成功')}catch(e){msg('登入失敗：'+niceError(e),true)}};
