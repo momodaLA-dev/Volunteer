@@ -36,6 +36,19 @@
     "privateNotes": {
       ".read": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
       ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
+    },
+    "volunteerDirectory": {
+      ".read": "auth != null",
+      ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
+    },
+    "drafts": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('roles').child(auth.uid).val() === 'admin')",
+        "$taskId": {
+          ".write": "auth != null && auth.uid === $uid && ((!newData.exists()) || (root.child('tasks').child($taskId).child('assignee').val() === auth.uid && !root.child('submissions').child($taskId).exists() && !root.child('tasks').child($taskId).child('archived').val()))",
+          ".validate": "newData.child('updatedAt').isNumber() && newData.child('values').hasChildren()"
+        }
+      }
     }
   }
 }
