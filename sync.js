@@ -9,10 +9,20 @@ const path=p=>db.ref(p);const subscribe=(p,cb)=>{const r=path(p);r.on('value',cb
 const niceError=e=>e?.code==='PERMISSION_DENIED'?'沒有權限，請確認 Firebase 規則、UID 與指派人員。':(e?.message||String(e));
 const itemify=(v,id)=>({id,warehouse:String(v.warehouse||''),sku:String(v.sku||''),quantity:String(v.quantity||''),expiry:String(v.expiry||'')});
 const parseLines=s=>s.trim().split(/\r?\n/).filter(Boolean).map((line,i)=>{const a=line.split(',').map(x=>x.trim());if(a.length!==4||!a[0]||!/^#?\d{2}$/.test(a[1])||!/^(0|[1-9]\d*)$/.test(a[2])||!/^(19|20|21)\d\d(0[1-9]|1[0-2])$/.test(a[3]))throw Error(`第 ${i+1} 行不符合格式`);return {id:'r'+(i+1),warehouse:a[0],sku:'#'+a[1].replace('#',''),quantity:a[2],expiry:a[3]}});
+// 測試用「代號 + PIN」：代號轉換成 Firebase 內部的合成登入識別值。
+// 不需要收集真實 Email；PIN 由 Firebase Authentication 驗證，前端不保存 PIN。
+// 正式版需改成專用身分驗證服務，支援限速、鎖定、重設、稽核及更強的幹部驗證。
+const codeToEmail = code => {
+  const c=String(code||'').trim().toUpperCase();
+  if(!/^[AV][0-9]{3,8}$/.test(c))throw Error('代號格式不正確：志工例如 V001，幹部例如 A001');
+  if(admin && !c.startsWith('A'))throw Error('幹部請使用 A 開頭的代號');
+  if(!admin && !c.startsWith('V'))throw Error('志工請使用 V 開頭的代號');
+  return c.toLowerCase()+'@volunteer.example.com';
+};
 const fmt=t=>t?new Date(t).toLocaleString('zh-TW',{hour12:false}):'—';
-$('#login').onclick=async()=>{try{await auth.signInWithEmailAndPassword($('#email').value.trim(),$('#password').value);msg('登入成功')}catch(e){msg('登入失敗：'+niceError(e),true)}};
+$('#login').onclick=async()=>{try{const account=codeToEmail($('#volCode').value);const pin=$('#password').value;if(pin.length<6)throw Error('PIN 至少需要 6 碼');await auth.signInWithEmailAndPassword(account,pin);$('#password').value='';msg('登入成功')}catch(e){msg('登入失敗：'+niceError(e),true)}};
 $('#logout').onclick=()=>auth.signOut();
-auth.onAuthStateChanged(async u=>{clear();user=u;$('#loginBox').classList.toggle('hidden',!!u);$('#app').classList.toggle('hidden',!u);if(!u)return;try{if(admin){const role=(await path('roles/'+u.uid).once('value')).val();if(role!=='admin'){msg('此帳號尚未設定幹部權限；請在 Firebase roles/'+u.uid+' 設定 admin。',true);$('#app').classList.add('hidden');return;}subscribe('tasks',s=>{tasks=s.val()||{};renderAdmin()});subscribe('submissions',s=>{submissions=s.val()||{};renderAdmin()});subscribe('privateNotes',s=>{Object.assign(notes,s.val()||{});renderAdmin()});}else{$('#myname').textContent=u.email||u.uid;subscribe('assignments/'+u.uid,s=>{assigned=s.val()||{};renderVolunteer()});subscribe('reviewStatus/'+u.uid,s=>{status=s.val()||{};renderVolunteer()});}}catch(e){msg('無法初始化：'+niceError(e),true)}});
+auth.onAuthStateChanged(async u=>{clear();user=u;$('#loginBox').classList.toggle('hidden',!!u);$('#app').classList.toggle('hidden',!u);if(!u)return;try{if(admin){const role=(await path('roles/'+u.uid).once('value')).val();if(role!=='admin'){msg('此帳號尚未設定幹部權限；請在 Firebase roles/'+u.uid+' 設定 admin。',true);$('#app').classList.add('hidden');return;}subscribe('tasks',s=>{tasks=s.val()||{};renderAdmin()});subscribe('submissions',s=>{submissions=s.val()||{};renderAdmin()});subscribe('privateNotes',s=>{Object.assign(notes,s.val()||{});renderAdmin()});}else{$('#myname').textContent='志工代號：'+(u.email||'').split('@')[0].toUpperCase();subscribe('assignments/'+u.uid,s=>{assigned=s.val()||{};renderVolunteer()});subscribe('reviewStatus/'+u.uid,s=>{status=s.val()||{};renderVolunteer()});}}catch(e){msg('無法初始化：'+niceError(e),true)}});
 function renderVolunteer(){if(admin)return;const list=Object.entries(assigned).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));$('#tasks').innerHTML=list.length?list.map(([id,t])=>`<div class="card"><strong>${esc(t.title)}</strong> <span class="chip">${esc(t.scopeLabel||'全單')}</span><p class="muted">${t.mode==='visible'?'顯示資料核對':'獨立複點'} · ${esc(t.type==='recount'?'複點':'初點')}</p><p>${esc(status[id]?.label||'待清點')}</p><button data-open="${esc(id)}" ${status[id]?.state==='submitted'||status[id]?.state==='approved'?'disabled':''}>${status[id]?.state==='submitted'?'已送審':status[id]?.state==='approved'?'已審核':'開始／繼續清點'}</button></div>`).join(''):'<p class="muted">尚無指派任務。請幹部使用你的 UID 建立測試任務。</p>';$('#statusList').innerHTML=list.map(([id,t])=>`<div class="item"><strong>${esc(t.title)}</strong><p>${esc(status[id]?.label||'待清點')}</p></div>`).join('')||'尚無送審紀錄';document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openTask(b.dataset.open));}
 function getDraft(id){try{return JSON.parse(localStorage.getItem('vol-v7-draft-'+user.uid+'-'+id)||'null')}catch{return null}}
 function saveDraft(id,d){localStorage.setItem('vol-v7-draft-'+user.uid+'-'+id,JSON.stringify(d))}
