@@ -1,0 +1,41 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "roles": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('roles').child(auth.uid).val() === 'admin')",
+        ".write": false,
+        ".validate": "newData.isString() && newData.val() === 'admin'"
+      }
+    },
+    "tasks": {
+      ".read": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
+      ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
+    },
+    "assignments": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('roles').child(auth.uid).val() === 'admin')",
+        ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
+      }
+    },
+    "submissions": {
+      ".read": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
+      "$taskId": {
+        ".read": "auth != null && (root.child('roles').child(auth.uid).val() === 'admin' || root.child('tasks').child($taskId).child('assignee').val() === auth.uid)",
+        ".write": "auth != null && !data.exists() && root.child('tasks').child($taskId).child('assignee').val() === auth.uid && newData.child('uid').val() === auth.uid && newData.child('taskId').val() === $taskId && newData.child('items').hasChildren()",
+        ".validate": "newData.hasChildren(['uid','taskId','items','submittedAt']) && newData.child('uid').isString() && newData.child('taskId').isString() && newData.child('submittedAt').isNumber() && newData.child('items').hasChildren()"
+      }
+    },
+    "reviewStatus": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('roles').child(auth.uid).val() === 'admin')",
+        ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
+      }
+    },
+    "privateNotes": {
+      ".read": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
+      ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
+    }
+  }
+}
