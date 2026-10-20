@@ -7,3 +7,6 @@
 
 /* v5.1: stable thumb actions */
 .v-step-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}.v-step-actions button{min-height:52px;width:100%;font-size:1rem}.v-step-actions button[disabled]{opacity:.45}
+
+/* v6 consistent mobile editor geometry */
+.v-field{min-height:120px}.v6-step-box{min-height:165px;display:flex;flex-direction:column;justify-content:space-between}.v6-step{min-height:100px}.v6-entry-shell{overflow-anchor:none;scroll-margin-top:15px}.v6-step[hidden],.v-field[hidden]{display:none!important}.v-step-actions{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.v-step-actions button{min-width:0}.panel .tablewrap{overflow-x:auto}
