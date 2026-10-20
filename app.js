@@ -10,11 +10,13 @@ const seed=()=>({version:3,members:[{id:"v1",name:"示範志工－小安",status
 let data;try{data=JSON.parse(localStorage.getItem(KEY))||null}catch{};
 if(!data){data=seed();try{const old=JSON.parse(localStorage.getItem(LEGACY)||"null");if(old){data.notices=(old.announcements||[]).map(a=>({id:a.id,title:a.title,body:a.body,date:a.date})).concat(data.notices);const converted=(old.schedules||[]).map((s,i)=>({id:"old"+i,date:s.date,session:Number(s.start?.slice(0,2))<12?"am":"pm",start:s.start||"09:00",end:s.end||"12:00",location:"服務據點",title:old.events?.find(e=>e.id===s.eventId)?.title||"志工服務",capacity:Number(s.capacity)||4,task:s.task||"",memberIds:[]}));data.shifts.push(...converted)}}catch{}}
 for(const k of ["members","shifts","inventory","notices","messages","products"])data[k]||=[];
-data.warehouses ||= ["A倉","B倉","C倉"];data.volunteerMessage ||= "謝謝每一位志工的投入！服務前請先確認安排，清點時留意品號、數量與效期，有任何問題請隨時回報幹部。";
+data.warehouses ||= ["008倉","0089倉","0088倉"];
+// One-time conversion of existing warehouse options; preserve old order lines as historical records.
+if(!data.warehouseCodesV75){data.warehouses=[...new Set(data.warehouses.map(w=>({"A倉":"008倉","B倉":"0089倉","C倉":"0088倉"}[w]||w)))];data.warehouseCodesV75=true;}data.volunteerMessage ||= "謝謝每一位志工的投入！服務前請先確認安排，清點時留意品號、數量與效期，有任何問題請隨時回報幹部。";
 for(const k of ["confirmations","reports"])data[k]||={};
 data.inventory=data.inventory.map(i=>({...i,quantity:String(i.quantity||0),expiry:String(i.expiry||"").replaceAll("-","")}));
 if(!data.members.some(m=>m.id===data.demoMember))data.demoMember=data.members[0]?.id||"";
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){console.warn("無法儲存示範資料",e)}};
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(data));return true}catch(e){console.warn("無法儲存示範資料",e);return false}};
 let page=ADMIN?"overview":"home";
 const sid=(prefix)=>prefix+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const fmtSession=s=>s==="am"?"上午":"下午";
@@ -79,6 +81,8 @@ function bind(){
   if(action==="toggleMember"){const m=data.members.find(x=>x.id===id);if(m){m.status=m.status==="active"?"inactive":"active";toast("志工狀態已更新");}}
   render();
  });
+ $("#warehouseForm")?.addEventListener("submit",e=>{e.preventDefault();const value=String(new FormData(e.currentTarget).get("warehouses")||"");const names=[...new Set(value.split(/[\n,，、]+/).map(x=>x.trim()).filter(Boolean))];if(!names.length){toast("至少保留一個倉別");return;}if(names.some(x=>x.length>24)){toast("倉別名稱請勿超過24字");return;}const previous=data.warehouses;data.warehouses=names;if(!save()){data.warehouses=previous;toast("儲存失敗：本機容量不足或瀏覽器禁止儲存");return;}toast("倉別已儲存在此瀏覽器（雲端尚未同步）");render();});
+ $("#volunteerNoteForm")?.addEventListener("submit",e=>{e.preventDefault();data.volunteerMessage=String(new FormData(e.currentTarget).get("message")||"").trim();if(save()){toast("志工提醒文字已儲存（本機）");render()}else toast("儲存失敗");});
  $("#inventoryForm")?.addEventListener("submit",e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.currentTarget));if(!/^\d+$/.test(d.quantity)||BigInt(d.quantity)<1n){toast("數量請輸入正整數");return;}if(!/^\d{2}$/.test(d.sku)){toast("品號請輸入兩碼數字");return;}if(!validExpiry(d.expiry)){toast("效期請輸入有效日期，例如 20271231");return;}data.inventory.push({...d,sku:normalizedSku(d.sku),id:sid("inv"),memberId:data.demoMember,quantity:d.quantity.replace(/^0+/,"")||"0",at:new Date().toISOString()});toast("新增成功！已更新明細與統計");render()});
  $("#shiftForm")?.addEventListener("submit",e=>{e.preventDefault();const f=e.currentTarget,d=Object.fromEntries(new FormData(f)),ids=new FormData(f).getAll("memberIds");if(d.end<=d.start){toast("結束時間須晚於開始時間");return;}if(ids.length>Number(d.capacity)){toast("指派人數超過名額");return;}const overlapping=data.shifts.some(s=>s.id!==d.id&&s.date===d.date&&s.memberIds.some(id=>ids.includes(id))&&d.start<s.end&&s.start<d.end);if(overlapping){toast("已有志工在同時段被指派，請調整");return;}const entry={...d,id:d.id||sid("sh"),capacity:Number(d.capacity),memberIds:ids};const idx=data.shifts.findIndex(s=>s.id===entry.id);if(idx>=0){data.shifts[idx]=entry}else{data.shifts.push(entry)}toast(idx>=0?"班次已更新":"班次已建立");render()});
  $("#cancelEdit")?.addEventListener("click",()=>render());

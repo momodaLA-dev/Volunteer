@@ -1,0 +1,9 @@
+@media (min-width:768px) and (pointer:fine){
+#vEntry.desktop-entry .v-field[hidden],#v6Form.desktop-entry .v6-step[hidden]{display:block!important}
+#vEntry.desktop-entry .v-field[data-step="4"],#v6Form.desktop-entry .v6-step[data-step="4"]{display:none!important}
+#vEntry.desktop-entry .v-step-actions,#v6Form.desktop-entry .v-step-actions{display:none!important}
+#vEntry.desktop-entry,#v6Form.desktop-entry{max-width:780px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:end}
+#vEntry.desktop-entry .v-field,#v6Form.desktop-entry .v6-step{min-width:0}
+#vEntry.desktop-entry .desktop-save,#v6Form.desktop-entry .desktop-save{grid-column:1 / -1;min-height:44px}
+#vEntry.desktop-entry #vStepHint,#v6Form.desktop-entry #v6Progress{display:none}
+}
