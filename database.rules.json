@@ -2,10 +2,12 @@
   "rules": {
     ".read": false,
     ".write": false,
-    "roles": {"$uid": {
-      ".read": "auth != null && (auth.uid === $uid || root.child('roles').child(auth.uid).val() === 'admin')",
-      ".write": false
-    }},
+    "roles": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('roles').child(auth.uid).val() === 'admin')",
+        ".write": false
+      }
+    },
     "volunteerDirectory": {
       ".read": "auth != null",
       "$code": {
@@ -16,7 +18,9 @@
     "announcements": {
       ".read": "auth != null",
       ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
-      "$id": {".validate": "newData.hasChildren(['title','body','at']) && newData.child('title').isString() && newData.child('title').val().length <= 80 && newData.child('body').isString() && newData.child('body').val().length <= 1200 && newData.child('at').isNumber()"}
+      "$id": {
+        ".validate": "newData.hasChildren(['title','body','at']) && newData.child('title').isString() && newData.child('title').val().length <= 80 && newData.child('body').isString() && newData.child('body').val().length <= 1200 && newData.child('at').isNumber()"
+      }
     },
     "workAssignments": {
       ".read": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
@@ -48,10 +52,12 @@
       ".read": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
       ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
     },
-    "assignments": {"$uid": {
-      ".read": "auth != null && (auth.uid === $uid || root.child('roles').child(auth.uid).val() === 'admin')",
-      ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
-    }},
+    "assignments": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('roles').child(auth.uid).val() === 'admin')",
+        ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
+      }
+    },
     "submissions": {
       ".read": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
       "$taskId": {
@@ -60,20 +66,58 @@
         ".validate": "newData.hasChildren(['uid','taskId','items','submittedAt']) && newData.child('uid').isString() && newData.child('taskId').isString() && newData.child('submittedAt').isNumber() && newData.child('items').hasChildren()"
       }
     },
-    "reviewStatus": {"$uid": {
-      ".read": "auth != null && (auth.uid === $uid || root.child('roles').child(auth.uid).val() === 'admin')",
-      ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
-    }},
+    "reviewStatus": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('roles').child(auth.uid).val() === 'admin')",
+        ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
+      }
+    },
     "privateNotes": {
       ".read": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
       ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
     },
-    "drafts": {"$uid": {
-      ".read": "auth != null && (auth.uid === $uid || root.child('roles').child(auth.uid).val() === 'admin')",
-      "$taskId": {
-        ".write": "auth != null && auth.uid === $uid && ((!newData.exists()) || (root.child('tasks').child($taskId).child('assignee').val() === auth.uid && !root.child('submissions').child($taskId).exists() && !root.child('tasks').child($taskId).child('archived').val()))",
-        ".validate": "newData.hasChildren(['updatedAt','values']) && newData.child('updatedAt').isNumber() && newData.child('values').hasChildren()"
+    "drafts": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('roles').child(auth.uid).val() === 'admin')",
+        "$taskId": {
+          ".write": "auth != null && auth.uid === $uid && ((!newData.exists()) || (root.child('tasks').child($taskId).child('assignee').val() === auth.uid && !root.child('submissions').child($taskId).exists() && !root.child('tasks').child($taskId).child('archived').val()))",
+          ".validate": "newData.hasChildren(['updatedAt','values']) && newData.child('updatedAt').isNumber() && newData.child('values').hasChildren()"
+        }
       }
-    }}
+    },
+    "v9": {
+      ".read": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
+      ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
+      "assigned": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid"
+        }
+      },
+      "statuses": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$roundId": {
+            ".write": "auth != null && auth.uid === $uid && root.child('v9').child('submissions').child($roundId).child('uid').val() === auth.uid && newData.child('state').val() === 'submitted'",
+            ".validate": "newData.hasChildren(['state','label']) && newData.child('state').val() === 'submitted' && newData.child('label').isString()"
+          }
+        }
+      },
+      "drafts": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$roundId": {
+            ".write": "auth != null && auth.uid === $uid && root.child('v9').child('rounds').child($roundId).child('uid').val() === auth.uid && !root.child('v9').child('submissions').child($roundId).exists()",
+            ".validate": "newData.hasChildren(['rev','rows','updatedAt']) && newData.child('rev').isNumber() && newData.child('updatedAt').isNumber()"
+          }
+        }
+      },
+      "submissions": {
+        "$roundId": {
+          ".read": "auth != null && root.child('v9').child('rounds').child($roundId).child('uid').val() === auth.uid",
+          ".write": "auth != null && !data.exists() && root.child('v9').child('rounds').child($roundId).child('uid').val() === auth.uid && root.child('v9').child('assigned').child(auth.uid).child($roundId).exists() && newData.child('uid').val() === auth.uid && newData.child('roundId').val() === $roundId && newData.child('items').hasChildren()",
+          ".validate": "newData.hasChildren(['uid','roundId','docId','items','submittedAt']) && newData.child('uid').isString() && newData.child('submittedAt').isNumber() && newData.child('items').hasChildren()"
+        }
+      }
+    }
   }
 }
