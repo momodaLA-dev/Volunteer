@@ -1,0 +1,8 @@
+暖心同行｜志工自行新增清點單補丁
+
+1. 只把 inventory-cloud.js 上傳 GitHub Volunteer 根目錄，覆蓋舊檔。不要覆蓋 index.html、admin.html、firebase-config.js。
+2. database.rules.json 先備份既有 Firebase 規則，再比對完整規則；確認後貼入 Firebase Realtime Database → 規則並發布。GitHub 上傳 JSON 不會啟用規則。
+3. 志工原版頁面 → 物資清點 → 自行新增清點單。電腦按 Enter 依序輸入。儲存草稿與送審都會寫入 v9/selfCounts/登入UID。
+4. 幹部原版頁面 → 清點紀錄／複點 → 志工自行新增清點單；可下載 CSV，或把已送審單轉入正式主單，接著指派 V2。
+5. 上線前先用假資料測試，並備份舊資料。跨裝置草稿仍不支援同時編輯衝突合併。
+6. 本更新已通過 JS 語法與 JSON 格式檢查，尚未完成 Firebase 線上端對端測試。

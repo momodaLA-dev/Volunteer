@@ -80,7 +80,7 @@
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || root.child('roles').child(auth.uid).val() === 'admin')",
         "$taskId": {
-          ".write": "auth != null && auth.uid === $uid && ((!newData.exists()) || (root.child('tasks').child($taskId).child('assignee').val() === auth.uid && !root.child('submissions').child($taskId).exists() && !root.child('tasks').child($taskId).child('archived').val()))",
+          ".write": "auth != null && auth.uid === $uid && ((!newData.exists()) || (root.child('tasks').child($taskId).child('assignee').val() === auth.uid && !root.child('submissions').child($taskId).exists() && root.child('tasks').child($taskId).child('archived').val() !== true))",
           ".validate": "newData.hasChildren(['updatedAt','values']) && newData.child('updatedAt').isNumber() && newData.child('values').hasChildren()"
         }
       }
@@ -115,7 +115,7 @@
       "submissions": {
         "$roundId": {
           ".read": "auth != null && root.child('v9').child('rounds').child($roundId).child('uid').val() === auth.uid",
-          ".write": "auth != null && !data.exists() && root.child('v9').child('rounds').child($roundId).child('uid').val() === auth.uid && root.child('v9').child('assigned').child(auth.uid).child($roundId).exists() && newData.child('uid').val() === auth.uid && newData.child('roundId').val() === $roundId && newData.child('items').hasChildren()",
+          ".write": "auth != null && !data.exists() && (root.child('roles').child(auth.uid).val() === 'admin' || (root.child('v9').child('rounds').child($roundId).child('uid').val() === auth.uid && root.child('v9').child('assigned').child(auth.uid).child($roundId).exists() && newData.child('uid').val() === auth.uid && newData.child('roundId').val() === $roundId && newData.child('items').hasChildren()))",
           ".validate": "newData.hasChildren(['uid','roundId','docId','items','submittedAt']) && newData.child('uid').isString() && newData.child('submittedAt').isNumber() && newData.child('items').hasChildren()"
         }
       },
@@ -127,6 +127,16 @@
       },
       "rounds": {
         ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
+      },
+      "selfCounts": {
+        ".read": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          "$id": {
+            ".write": "auth != null && (root.child('roles').child(auth.uid).val() === 'admin' || (auth.uid === $uid && data.child('state').val() !== 'submitted' && newData.child('uid').val() === auth.uid && newData.child('title').isString() && newData.child('title').val().length <= 100 && newData.child('items').hasChildren() && newData.child('linkedDocId').val() === data.child('linkedDocId').val() && (newData.child('state').val() === 'draft' || newData.child('state').val() === 'submitted')))",
+            ".validate": "newData.hasChildren(['uid','title','state','items','updatedAt']) && newData.child('updatedAt').isNumber() && newData.child('items').hasChildren()"
+          }
+        }
       }
     }
   }
