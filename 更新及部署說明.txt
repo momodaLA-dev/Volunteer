@@ -1,0 +1,42 @@
+暖心同行｜單一網站、保留原介面、雲端清點整合包（2026-10-21）
+
+請務必先看：本包是以之前已提供的完整原版介面為基礎，不是只把最新 v9 簡版改名。
+網址維持 /Volunteer/（志工）與 /Volunteer/admin.html（幹部）。
+
+一、部署前：
+1. GitHub Code → Download ZIP，備份網站程式。
+2. Firebase Realtime Database → 資料 → 匯出 JSON，另把「規則」全文備份到本機。
+3. 之前存在瀏覽器 localStorage 的清點紀錄不會自動搬到 v9；請保留原瀏覽器資料並匯出既有單據。不要清除網站資料或卸載 PWA。
+
+二、GitHub：
+將本包中 8 個 .html/.js/.css 網站檔（除 database.rules.json 和此說明）上傳 GitHub Volunteer 根目錄並 Commit。
+保留 repository 裡面的 app.js、styles.css、v5.js、v6.js、v6m.js、professional.css、unified.css、desktop-entry.js、desktop-entry.css、firebase-config.js、icon、manifest、service-worker.js 等檔案。不要刪除其他檔案。
+請確認 firebase-config.js 仍指向 volunteer-care-9bb4b 專案與正確的 databaseURL；不要另填 API Key。
+
+三、Firebase：
+將 database.rules.json 的整份內容貼到 Volunteer Care → Realtime Database → 規則並發布。GitHub 上傳此 JSON 檔本身不會改變線上規則。
+⚠ 規則檔是依上次專案整理的基礎寫成，如線上已有其他未備份的新功能規則，請先比對再套用，避免覆蓋既有服務；不要設定全域公開讀寫。
+確認 /roles/<A0001 Firebase UID> 值仍是字串 admin。
+
+四、帳號：
+A0001：原有幹部帳號；V0001 / V0002 沿用既有 Firebase 帳號。
+V0003：必須先在 Firebase Authentication 建立登入帳號；在幹部→「物資清點」→「志工帳號」輸入代號、姓名、真正 UID。以後 V0004 同樣先開 Firebase 帳號，再登記名冊；不必改資料庫規則或寫新分支。
+V0004 以後須在 Firebase Authentication 以固定 Email 格式 v0004@volunteer-care.example.com（依代號類推）建立帳號，再於幹部名冊填入 UID。若使用不同 Email 格式，現有代號登入將找不到該帳號。
+
+五、測試順序：
+1. A0001 登入 /admin.html → 原管理介面 → 清點紀錄 → 建立主單／指派 V1。
+2. V0001 在獨立瀏覽器登入 /Volunteer/ → 物資清點 → 收到 V1 → 填寫送審。
+3. A0001 在主單查看 V1 → 指派 V2 給 V0002。
+4. V0002 登入 /Volunteer/ → 物資清點 → 收到 V2 → 送審。
+5. A0001 比對版本與下載 CSV，核對數量、倉別、效期與品號。
+
+六、仍有限制：
+此包經過 JavaScript 靜態語法檢查及安全規則 JSON 解析；沒有可連線到你的 Firebase 服務執行端對端驗證，因此尚不能宣稱實際線上流程通過。
+除物資清點區外，原本的公告、今日服務、品號及聊天等仍可能使用本機原型資料，並非全部雲端同步。
+舊本機單據尚未自動匯入；同一筆雲端草稿同時用兩裝置寫入會顯示衝突而非自動合併。
+網站的 Firebase Email/Password 登入與雲端規則必須一致；同一瀏覽器的多個一般分頁共用 Firebase 登入身分。請用不同瀏覽器區隔管理員/志工。
+
+七、發生錯誤怎麼辦：
+permission_denied：先檢查是否「發布」本包完整規則，再核對正確 Firebase 專案與 UID。
+版面沒有更新：先在無痕視窗檢查；舊 PWA 快取可能保留舊程式。
+不要因報錯就將 Firebase .read/.write 設為 true。

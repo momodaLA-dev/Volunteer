@@ -3,6 +3,7 @@
   const $=s=>document.querySelector(s);
   const isAdmin=location.pathname.endsWith('/admin.html');
   const accounts={A0001:'a0001@gmail.com.tw',V0001:'v0001@gmail.com',V0002:'v0002@gmail.com',V0003:'v0003@gmail.com'};
+  const emailForCode=code=>accounts[code]||(/^V\d{4}$/.test(code)?code.toLowerCase()+'@volunteer-care.example.com':null);
   const gate=$('#unifiedGate'),main=$('#unifiedMain'),frame=$('#cloudFrame'),panel=$('#cloudPanel'),content=$('#content');
   const loginForm=$('#unifiedLoginForm'),error=$('#unifiedLoginError'),submit=$('#unifiedSubmit');
   const fail=s=>{error.textContent=s||'';};
@@ -28,11 +29,11 @@
   });
   loginForm.addEventListener('submit',async e=>{
     e.preventDefault();const code=$('#unifiedCode').value.trim().toUpperCase(),pin=$('#unifiedPin').value;
-    if(!accounts[code])return fail('此代號尚未建立登入帳號');
+    const email=emailForCode(code);if(!email)return fail('請輸入正確的代號');
     if((isAdmin&&!code.startsWith('A'))||(!isAdmin&&!code.startsWith('V')))return fail('請使用正確身分的登入入口。');
     submit.disabled=true;fail('登入驗證中…');
     try{
-      await auth.signInWithEmailAndPassword(accounts[code],pin);
+      await auth.signInWithEmailAndPassword(email,pin);
       $('#unifiedPin').value='';
     }catch(err){fail('登入失敗：'+(err.message||err.code));}
     finally{submit.disabled=false;}
@@ -54,7 +55,7 @@
       return;
     }
     const code=(user.email||'').split('@')[0].toUpperCase();
-    if(accounts[code]!==user.email||((isAdmin&&!code.startsWith('A'))||(!isAdmin&&!code.startsWith('V')))){
+    if(emailForCode(code)!==user.email||((isAdmin&&!code.startsWith('A'))||(!isAdmin&&!code.startsWith('V')))){
       // 不因開啟錯誤身分的頁面而踢掉另一個頁面的 Firebase Session。
       verifiedUid=null;gate.hidden=false;main.hidden=true;
       fail('此帳號不適用於本頁，請使用正確身分的登入入口。若要更換帳號，請先在原登入頁登出。');
