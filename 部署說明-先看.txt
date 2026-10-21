@@ -1,27 +1,29 @@
-暖心同行｜單一入口修正版（清點／指派／複點／下載）
-===================================================
-這一包以你 2026/10/21 上傳的 Volunteer-main (1).zip 為基礎。
+暖心同行｜恢復原版完整介面、只更新清點模組
 
-【唯一入口】
-幹部：https://momodala-dev.github.io/Volunteer/admin.html
-志工：https://momodala-dev.github.io/Volunteer/
-沒有第二個測試入口，也不需再開 cloud-preview.html。
+版本 2026-10-21 統一版 (保留舊功能)
 
-【更新內容】
-* 幹部回到熟悉的「暖心同行」品牌標頭、管理總覽、清點紀錄／複點、建立／指派、志工名冊布局。
-* 保留現行 v9 Firebase 雲端清點／派發／複點／CSV 程式與三倉預設設定。
-* 整理完整 Firebase 規則，補上 v9 讀寫權限；移除 v9 父層過寬的管理員寫入授權，已送審版本不由前端直接覆蓋。
-* 更新資源快取版號。
+一、重要
+1. 這是「原版頁面 + v9 雲端清點模組」的整合方式，原本志工六個分頁全部保留。
+2. 物資清點按鈕打開雲端清點；幹部「清點紀錄」打開雲端管理。
+3. 其餘原版的公告、今日服務、品號、聊天、我的紀錄、排班等仍使用舊版 app.js 資料儲存邏輯，不能當作已經雲端化。
+4. 舊的瀏覽器本機清點單（如 INV-20261021-001）不會自動匯入 v9。請先使用舊環境備份。
+5. 這個版本未在你實際 Firebase 專案成功完成端對端驗證，請先用假資料。
 
-【上傳前重要注意】
-1. 先備份 GitHub 程式及 Firebase Realtime Database（資料 → 匯出 JSON）。
-2. 舊版 localStorage 清點單（例如 INV-20261021-001）不會自動匯入 v9。請從原瀏覽器匯出原始 CSV；不要清除網站資料。
-3. 將 admin.html、index.html、inventory-cloud.js、inventory-cloud.css 四個檔案上傳 GitHub 根目錄並 Commit。其他既有檔案保留不動；不要覆蓋 firebase-config.js。
-4. 「database.rules.json」不是上傳 GitHub 就會生效。必須另到 Firebase Console → Realtime Database → 規則，先備份現有規則後，完整貼上此檔內容並按「發布」。
-5. A0001 管理員 UID 仍應保留在 /roles/UID = "admin"；不要將志工 UID 設為 admin。
-6. 登入 A0001 → 志工名冊確認 V0001／V0002 的 UID 綁定 → 建測試主單 → V0001 提交 V1 → 指派 V0002 V2 → 核對 → 下載 CSV。
+二、GitHub 更新
+上傳以下 8 個網站檔案到 Volunteer 根目錄，覆蓋同名：
+admin.html、index.html、unified.js、inventory-tab-bridge.js、inventory-admin.html、inventory-volunteer.html、inventory-cloud.js、inventory-cloud.css
+保留原有 app.js、v5.js、v6.js、v6m.js、styles.css、firebase-config.js、professional.css、unified.css、service-worker.js 等，不要刪除！
 
-【上線注意】
-這是針對現有程式的修正版；本地語法及規則 JSON 可檢查，但無法從這裡登入你的 Firebase 線上系統做端對端測試。
-正式使用前，先以不含個資的測試資料驗證。CSV 並非 .xlsx；結單不會自動更新原倉儲系統。
-新增 V0004 必須先在 Firebase Authentication 建立相應 Email/Password，並將 UID 綁定在幹部名冊。
+三、Firebase 規則
+單獨開啟 database.rules.json，比對目前已發布規則；先備份現有規則和資料，再完整更新（不能直接把這個 json 當作網站檔案上傳就認為已套用）。
+目前報錯 /v9/submissions、/v9/statuses 是資料庫規則拒絕，非改頁面樣式能修復。
+注意：發布新規則前應先審核安全性，切勿把 .read / .write 全站設 true。
+
+四、測試
+管理員 A0001：進 admin.html，使用「清點紀錄」，建立並指派測試主單。
+志工 V0001：進 index.html，使用「物資清點」，查看 V1 並送出。
+管理員：指派 V2 給 V0002；志工登入「物資清點」收到後送出，管理員匯出 CSV。
+
+五、注意
+由於保留舊版登入外殼，內嵌清點子頁會共用同網域 Firebase Auth；同一 Chrome 瀏覽器一般分頁不可同時保持不同帳號（請用 Edge 等獨立瀏覽器）。
+若仍權限不足，先確認 Firebase 規則是否發布，再確認 UID 及實際資料庫路徑。

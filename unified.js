@@ -9,7 +9,7 @@
   let auth,db,verifiedUid=null,authGeneration=0,explicitLogout=false,cloudLoaded=false;
   function showCloud(){
     panel.hidden=false;content.hidden=true;
-    if(!cloudLoaded){frame.src='./'+(isAdmin?'sync-admin.html':'sync-test.html')+'?embedded=1&v=760';cloudLoaded=true;}
+    if(!cloudLoaded){frame.src='./'+(isAdmin?'inventory-admin.html':'inventory-volunteer.html')+'?embedded=1&v=921';cloudLoaded=true;}
     window.scrollTo({top:0,behavior:'smooth'});
   }
   function showOriginal(){panel.hidden=true;content.hidden=false;}
@@ -80,7 +80,7 @@
     verifiedUid=user.uid;
     $('#unifiedIdentity').textContent=code;
     fail('');gate.hidden=true;main.hidden=false;
-    showCloud();
+    showOriginal();
   },err=>{
     // 短暫驗證/網路異常不應清除已開啟的後台。
     if(verifiedUid) return;
