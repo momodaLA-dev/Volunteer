@@ -87,11 +87,11 @@
     },
     "v9": {
       ".read": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
-      ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
       "assigned": {
         "$uid": {
           ".read": "auth != null && auth.uid === $uid"
-        }
+        },
+        ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
       },
       "statuses": {
         "$uid": {
@@ -100,7 +100,8 @@
             ".write": "auth != null && auth.uid === $uid && root.child('v9').child('submissions').child($roundId).child('uid').val() === auth.uid && newData.child('state').val() === 'submitted'",
             ".validate": "newData.hasChildren(['state','label']) && newData.child('state').val() === 'submitted' && newData.child('label').isString()"
           }
-        }
+        },
+        ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
       },
       "drafts": {
         "$uid": {
@@ -117,6 +118,15 @@
           ".write": "auth != null && !data.exists() && root.child('v9').child('rounds').child($roundId).child('uid').val() === auth.uid && root.child('v9').child('assigned').child(auth.uid).child($roundId).exists() && newData.child('uid').val() === auth.uid && newData.child('roundId').val() === $roundId && newData.child('items').hasChildren()",
           ".validate": "newData.hasChildren(['uid','roundId','docId','items','submittedAt']) && newData.child('uid').isString() && newData.child('submittedAt').isNumber() && newData.child('items').hasChildren()"
         }
+      },
+      "directory": {
+        ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
+      },
+      "documents": {
+        ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
+      },
+      "rounds": {
+        ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'"
       }
     }
   }

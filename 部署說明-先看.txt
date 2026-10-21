@@ -1,0 +1,27 @@
+暖心同行｜單一入口修正版（清點／指派／複點／下載）
+===================================================
+這一包以你 2026/10/21 上傳的 Volunteer-main (1).zip 為基礎。
+
+【唯一入口】
+幹部：https://momodala-dev.github.io/Volunteer/admin.html
+志工：https://momodala-dev.github.io/Volunteer/
+沒有第二個測試入口，也不需再開 cloud-preview.html。
+
+【更新內容】
+* 幹部回到熟悉的「暖心同行」品牌標頭、管理總覽、清點紀錄／複點、建立／指派、志工名冊布局。
+* 保留現行 v9 Firebase 雲端清點／派發／複點／CSV 程式與三倉預設設定。
+* 整理完整 Firebase 規則，補上 v9 讀寫權限；移除 v9 父層過寬的管理員寫入授權，已送審版本不由前端直接覆蓋。
+* 更新資源快取版號。
+
+【上傳前重要注意】
+1. 先備份 GitHub 程式及 Firebase Realtime Database（資料 → 匯出 JSON）。
+2. 舊版 localStorage 清點單（例如 INV-20261021-001）不會自動匯入 v9。請從原瀏覽器匯出原始 CSV；不要清除網站資料。
+3. 將 admin.html、index.html、inventory-cloud.js、inventory-cloud.css 四個檔案上傳 GitHub 根目錄並 Commit。其他既有檔案保留不動；不要覆蓋 firebase-config.js。
+4. 「database.rules.json」不是上傳 GitHub 就會生效。必須另到 Firebase Console → Realtime Database → 規則，先備份現有規則後，完整貼上此檔內容並按「發布」。
+5. A0001 管理員 UID 仍應保留在 /roles/UID = "admin"；不要將志工 UID 設為 admin。
+6. 登入 A0001 → 志工名冊確認 V0001／V0002 的 UID 綁定 → 建測試主單 → V0001 提交 V1 → 指派 V0002 V2 → 核對 → 下載 CSV。
+
+【上線注意】
+這是針對現有程式的修正版；本地語法及規則 JSON 可檢查，但無法從這裡登入你的 Firebase 線上系統做端對端測試。
+正式使用前，先以不含個資的測試資料驗證。CSV 並非 .xlsx；結單不會自動更新原倉儲系統。
+新增 V0004 必須先在 Firebase Authentication 建立相應 Email/Password，並將 UID 綁定在幹部名冊。
