@@ -1,18 +1,16 @@
-VolunteerCare V1.5 — V1/V2 Readback Compare Fix — 2026-10-22
+VolunteerCare V1.7 - OneLogin ThreeBrowsers - 2026-10-22
 
-本版只修改獨立診斷工具，不修改原本志工六分頁、幹部後台、清點模組或 Firebase 規則。
+修改：
+1. Firebase Auth 使用 LOCAL persistence，刷新頁面保留登入；已登入相同帳號不需重輸 PIN。
+2. 顯示真實已驗證帳號與對應可執行步驟；不允許未登入/錯誤帳號按測試按鈕。
+3. 新增「檢查目前身分」按鈕，避免同一瀏覽器分頁切換混淆。
+4. 維持 V1.5 欄位順序無關的回讀比較與 V1.6 已修正的 Firebase 規則相容。
+5. 保留兩種起點：A0001 先派發；V0001 自行發起。
 
-修正：
-- Firebase 回讀資料之物件欄位順序可能與提交時不同；先遞迴排序鍵名，再比對實際值，避免已成功寫入卻被誤判失敗。
-- 如仍有實際資料內容差異，額外列印預期與回讀的差異供排查。
-- 保留 V1.4 雙起點流程與接續修復既有 DIAG 測試資料的功能。
+上傳 GitHub：只需 v1-v2-diagnostic.html，覆蓋同名檔案。
+Firebase 規則：不用更動。
+不修改：index.html、admin.html、firebase-config.js、現有清點單。
 
-上傳 GitHub：僅將 v1-v2-diagnostic.html 覆蓋至 Volunteer 專案根目錄，Commit changes。
-測試頁：https://momodala-dev.github.io/Volunteer/v1-v2-diagnostic.html
-
-測試步驟：
-1. 使用 A0001 登入，按「建立／修復 V1」。舊 DIAG 的 assigned 已經實際寫入，可接續補齊 statuses。
-2. 若顯示 V1 完成，登出並使用 V0001 送出 V1。
-3. 再由 A0001 派 V2 給 V0002；V0002 送出，A0001 確認。
-
-注意：本版只經本機靜態語法檢查；尚未連線實際 Firebase 測試。
+建議：Chrome 正常視窗 A0001；Edge 正常視窗 V0001；另一個 Chrome 瀏覽器設定檔 V0002。
+無痕模式關閉後登入狀態會清除；如需持續保留請用獨立瀏覽器設定檔。
+每個帳號仍需首次驗證登入；不存 PIN 到診斷頁。
