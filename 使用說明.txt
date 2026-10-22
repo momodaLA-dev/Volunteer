@@ -1,8 +1,8 @@
-暖心同行｜志工自行新增清點單補丁
+暖心同行｜四站雲端接力診斷
 
-1. 只把 inventory-cloud.js 上傳 GitHub Volunteer 根目錄，覆蓋舊檔。不要覆蓋 index.html、admin.html、firebase-config.js。
-2. database.rules.json 先備份既有 Firebase 規則，再比對完整規則；確認後貼入 Firebase Realtime Database → 規則並發布。GitHub 上傳 JSON 不會啟用規則。
-3. 志工原版頁面 → 物資清點 → 自行新增清點單。電腦按 Enter 依序輸入。儲存草稿與送審都會寫入 v9/selfCounts/登入UID。
-4. 幹部原版頁面 → 清點紀錄／複點 → 志工自行新增清點單；可下載 CSV，或把已送審單轉入正式主單，接著指派 V2。
-5. 上線前先用假資料測試，並備份舊資料。跨裝置草稿仍不支援同時編輯衝突合併。
-6. 本更新已通過 JS 語法與 JSON 格式檢查，尚未完成 Firebase 線上端對端測試。
+1. 上傳 relay-diagnostic.html 到 GitHub Volunteer 根目錄，不要覆蓋 index.html 或 admin.html。
+2. 備份 Firebase Realtime Database 目前規則；檢查隨附 database.rules.json 是否保留你目前發布的所有規則。此檔以先前的規則版本為基礎，線上規則若較新，切勿整份覆蓋，請將 cloudDiagnostics/relay 區塊合併進目前規則。
+3. 正確發布規則後開啟 https://momodala-dev.github.io/Volunteer/relay-diagnostic.html
+4. 分別使用不同瀏覽器：小安 V0001 發起 → 幹部 A0001 轉交 → 小恩 V0002 回覆 → 幹部 A0001 確認。
+5. 測試失敗，點「複製記錄」提供給我。
+6. 全程假資料，請勿輸入正式單據或個資。只有幹部可重設這一筆診斷紀錄。

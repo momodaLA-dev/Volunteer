@@ -138,6 +138,37 @@
           }
         }
       }
+    },
+    "cloudDiagnostics": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || (auth != null && root.child('roles').child(auth.uid).val() === 'admin'))",
+        "request": {
+          ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
+          ".validate": "newData.hasChildren(['testId','from','text','createdAt']) && newData.child('testId').isString() && newData.child('text').isString() && newData.child('text').val().length <= 100 && newData.child('createdAt').isNumber()"
+        },
+        "response": {
+          ".write": "auth != null && auth.uid === $uid && newData.child('uid').val() === auth.uid && newData.child('testId').val() === root.child('cloudDiagnostics').child($uid).child('request').child('testId').val()",
+          ".validate": "newData.hasChildren(['testId','uid','repliedAt']) && newData.child('repliedAt').isNumber()"
+        }
+      },
+      "relay": {
+        "$originUid": {
+          ".read": "auth != null && (root.child('roles').child(auth.uid).val() === 'admin' || auth.uid === $originUid || (auth.uid === 'doMqfg6D70Ph5a49EuDPn7ELcS52' && $originUid === 'foudZi2657aMzg0XRPmDcidP6sp1'))",
+          ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
+          "meta": {
+            ".write": "auth != null && auth.uid === $originUid && $originUid === 'foudZi2657aMzg0XRPmDcidP6sp1' && !data.exists() && newData.child('fromUid').val() === auth.uid && newData.child('text').isString() && newData.child('runId').isString() && newData.child('at').isNumber()"
+          },
+          "forward": {
+            ".validate": "newData.hasChildren(['runId','targetUid','fromUid','at']) && newData.child('targetUid').val() === 'doMqfg6D70Ph5a49EuDPn7ELcS52' && newData.child('runId').val() === root.child('cloudDiagnostics').child('relay').child($originUid).child('meta').child('runId').val()"
+          },
+          "reply": {
+            ".write": "auth != null && auth.uid === 'doMqfg6D70Ph5a49EuDPn7ELcS52' && !data.exists() && root.child('cloudDiagnostics').child('relay').child($originUid).child('forward').child('targetUid').val() === auth.uid && newData.child('fromUid').val() === auth.uid && newData.child('runId').val() === root.child('cloudDiagnostics').child('relay').child($originUid).child('meta').child('runId').val() && newData.child('at').isNumber()"
+          },
+          "ack": {
+            ".validate": "newData.hasChildren(['runId','byUid','at']) && newData.child('runId').val() === root.child('cloudDiagnostics').child('relay').child($originUid).child('meta').child('runId').val()"
+          }
+        }
+      }
     }
   }
 }
