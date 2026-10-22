@@ -48,7 +48,69 @@ function renderSelfCreate(existingId){
  const unsaved=()=>{dirty=true;$('#selfState').textContent='尚未同步…';clearTimeout(draftTimer);draftTimer=setTimeout(()=>save().catch(e=>notify('草稿同步失敗：'+e.message,true)),1600)};
  if(!locked){tb.addEventListener('input',unsaved);$('#selfTitle').addEventListener('input',()=>{if($('#selfTitle').value.trim())unsaved()});tb.addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();const fields=[...tb.querySelectorAll('input:not(:disabled)')];const i=fields.indexOf(e.target);if(i>=0){if(i===fields.length-1){add();tb.lastElementChild.querySelector('input').focus();}else fields[i+1].focus();}});$('#selfAdd').onclick=()=>{add();tb.lastElementChild.querySelector('input').focus();unsaved()};$('#selfSave').onclick=()=>{clearTimeout(draftTimer);save().catch(e=>notify(e.message,true))};$('#selfSubmit').onclick=async()=>{clearTimeout(draftTimer);if(!confirm('確定送審？之後不可自行修改。'))return;try{await save(true);editing=null;tab('list')}catch(e){notify('送審失敗：'+e.message,true)}};}
  $('#selfBack').onclick=()=>{if(dirty&&!confirm('尚有未同步的內容，確定返回？'))return;clearTimeout(draftTimer);editing=null;tab('list')};
+ mountMobileWizard('selfLines', 'self', locked);
 }
+
+// 手機清點專用逐步輸入介面；沿用現有表格欄位及 Firebase 儲存／送審流程。
+// 不建立第二份清點資料，不直接修改雲端權限或正式送審紀錄。
+function mountMobileWizard(tableId, type, locked){
+ const tb=document.getElementById(tableId);
+ if(!tb || !window.matchMedia('(max-width: 720px)').matches)return;
+ const section=tb.closest('section.card');
+ if(!section)return;
+ section.classList.add('mobile-wizard-on');
+ const el=document.createElement('div');el.className='mobile-wizard';
+ const fields=type==='self'?['warehouse','sku','quantity','expiry','review']:['quantity','expiry','review'];
+ let row=0,step=0;
+ const table=tb.closest('.tablewrap'); table?.classList.add('wizard-table-hidden');
+ table?.after(el);
+ const rowElements=()=>[...tb.querySelectorAll('tr')];
+ const getInput=(tr,key)=>tr?.querySelector('[data-k="'+key+'"]');
+ const validate=(key,val)=>{
+   const s=String(val||'').trim();
+   if(key==='sku'&&!/^\d{1,2}$/.test(s))return '品號請輸入 1～2 位數字';
+   if(key==='quantity'&&(!/^\d+$/.test(s)||Number(s)<0))return '數量請輸入 0 以上的整數';
+   if(key==='expiry'&&!/^\d{6}$/.test(s))return '效期請輸入六碼 YYYYMM';
+   if(key==='expiry'&&(+s.slice(4)<1||+s.slice(4)>12))return '效期月份必須在 01～12';
+   return '';
+ };
+ const updateInput=(key,value)=>{const input=getInput(rowElements()[row],key);if(!input)return;input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));};
+ function draw(){
+   const rows=rowElements();row=Math.min(row,Math.max(0,rows.length-1));
+   const tr=rows[row]; if(!tr)return;
+   const key=fields[step],currentValue=key==='review'?'':getInput(tr,key)?.value||'';
+   const ref=type==='task'?'<p class="wizard-meta">倉別：'+escapeHTML(tr.children[0]?.textContent?.trim())+'　品號：'+escapeHTML(tr.children[1]?.textContent?.trim())+'</p>':'';
+   const fieldLabels={warehouse:'倉別',sku:'品號',quantity:'數量',expiry:'效期 YYYYMM',review:'確認本筆'};
+   const currentRows=rows.length;
+   let control='';
+   if(key==='review'){
+     const val=k=>getInput(tr,k)?.value || (type==='task'?(k==='warehouse'?tr.children[0]?.textContent.trim():k==='sku'?tr.children[1]?.textContent.trim():''):'');
+     control='<dl class="wizard-review">'+[['倉別','warehouse'],['品號','sku'],['數量','quantity'],['效期','expiry']].map(([l,k])=>'<div><dt>'+l+'</dt><dd>'+escapeHTML(val(k))+'</dd></div>').join('')+'</dl>';
+   }else if(key==='warehouse'){
+     control='<select id="wizardValue" aria-label="倉別">'+['008倉','0089倉','0088倉'].map(v=>'<option value="'+v+'"'+(v===currentValue?' selected':'')+'>'+v+'</option>').join('')+'</select>';
+   }else{
+     control='<input id="wizardValue" aria-label="'+fieldLabels[key]+'" inputmode="numeric" type="text" autocomplete="off" pattern="[0-9]*" value="'+escapeHTML(currentValue)+'" placeholder="'+(key==='expiry'?'例如 202712':key==='quantity'?'實際數量':'例如 25')+'">';
+   }
+   el.innerHTML='<div class="wizard-top"><strong>第 '+(row+1)+' 筆／'+currentRows+' 筆</strong><small>步驟 '+(step+1)+'／'+fields.length+'</small></div>'+ref+'<h3>'+fieldLabels[key]+'</h3>'+control+'<div class="wizard-buttons"><button type="button" class="outline" id="wizardPrev"'+(row===0&&step===0?' disabled':'')+'>上一步</button><button type="button" id="wizardNext">'+(key==='review'?'確認本筆'+(type==='self'?'，繼續下一筆':'，下一筆'):'下一步')+'</button></div><p class="muted wizard-foot">逐筆確認後，請按頁面下方「儲存草稿」或「完成並送審」；未顯示已同步前請勿關閉頁面。</p>';
+   const inp=el.querySelector('#wizardValue');
+   if(inp){inp.oninput=()=>updateInput(key,inp.value);inp.onchange=()=>updateInput(key,inp.value);inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();el.querySelector('#wizardNext').click();}};}
+   el.querySelector('#wizardPrev').onclick=()=>{if(step>0)step--;else if(row>0){row--;step=fields.length-1;}draw();};
+   el.querySelector('#wizardNext').onclick=()=>{
+     if(key!=='review'){
+       if(inp)updateInput(key,inp.value);
+       const err=validate(key,inp?.value);if(err){notify(err,true);inp?.focus();return;}
+       step++;draw();return;
+     }
+     if(type==='self'){
+       const next=section.querySelector('#selfAdd');if(!next||next.disabled)return;
+       next.click();row=rowElements().length-1;step=0;draw();
+     }else if(row<rowElements().length-1){row++;step=0;draw();}
+     else{notify('所有項目已確認，請點「儲存雲端草稿」或「確認送審」。');section.querySelector('#saveDraft')?.scrollIntoView({block:'center',behavior:'smooth'});}
+   };
+ }
+ draw();
+}
+
 function renderHistory(){const data=Object.entries(assigned).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));$('#view').innerHTML=`<section class="card"><h2>我的任務紀錄</h2>${data.map(([id,a])=>`<div class="task"><strong>${escapeHTML(a.docNo)}｜V${a.roundNo}</strong><p>${escapeHTML(a.title)} · ${escapeHTML(statuses[id]?.label||'待清點')}</p></div>`).join('')||'<p>沒有任務紀錄</p>'}</section>`;}
 const rowKey=(r,i)=>i+'|'+r.warehouse+'|'+r.sku+'|'+r.expiry;
 async function openAssignment(roundId){const a=assigned[roundId];if(!a)return;editing='task';let serverDraft=null;try{serverDraft=(await p('drafts/'+current.uid+'/'+roundId).once('value')).val();}catch(err){notify('讀取草稿失敗：'+err.message,true)}const base=a.reference||[];let rows=base.map((r,i)=>({warehouse:r.warehouse,sku:r.sku,quantity:a.mode==='visible'?r.quantity:'',expiry:a.mode==='visible'?r.expiry:'',...(serverDraft?.rows?.[i]||{})}));oldDraftVersion=serverDraft?.rev||0;dirty=false;$('#view').innerHTML=`<section class="card"><div class="row between"><div><h2>${escapeHTML(a.docNo)}｜V${a.roundNo}</h2><p class="muted">${escapeHTML(a.title)} · ${a.mode==='blind'?'獨立輸入：不顯示參考數量及效期':'核對模式：已帶入參考數量與效期'}</p></div><button class="secondary" id="backToTasks">返回</button></div><p class="notice" id="draftMessage">${serverDraft?'已載入雲端草稿':'尚未儲存草稿'}</p><div class="tablewrap"><table><thead><tr><th>倉別</th><th>品號</th><th>實際數量</th><th>效期 YYYYMM</th></tr></thead><tbody id="taskRows">${rows.map((r,i)=>`<tr><td>${escapeHTML(r.warehouse)}</td><td>${escapeHTML(r.sku)}</td><td><input data-n="${i}" data-k="quantity" type="number" min="0" step="1" value="${escapeHTML(r.quantity)}" placeholder="數量"></td><td><input data-n="${i}" data-k="expiry" inputmode="numeric" maxlength="6" value="${escapeHTML(r.expiry)}" placeholder="YYYYMM"></td></tr>`).join('')}</tbody></table></div><div class="sticky"><button id="saveDraft" class="secondary">儲存雲端草稿</button><button id="submitTask">確認送審（送出後不能修改）</button></div></section>`;
@@ -56,6 +118,7 @@ const gather=()=>{document.querySelectorAll('#taskRows [data-n]').forEach(el=>ro
 const save=async()=>{const items=gather(),ref=p('drafts/'+current.uid+'/'+roundId);const res=await ref.transaction(data=>{if((data?.rev||0)!==oldDraftVersion)return;return {rev:oldDraftVersion+1,rows:items,updatedAt:now()}},undefined,false);if(!res.committed)throw Error('其他裝置已有較新草稿，為避免覆蓋已停止儲存。請先重新開啟任務載入最新內容。');oldDraftVersion++;dirty=false;$('#draftMessage').textContent='已同步雲端草稿 · '+new Date().toLocaleTimeString('zh-TW');return items};
 $('#taskRows').addEventListener('input',()=>{dirty=true;$('#draftMessage').textContent='尚未同步…';clearTimeout(draftTimer);draftTimer=setTimeout(()=>save().catch(e=>notify('草稿同步失敗：'+e.message,true)),950)});
 $('#taskRows').addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();const fields=[...document.querySelectorAll('#taskRows input')],idx=fields.indexOf(e.target);if(idx>=0&&idx<fields.length-1){fields[idx+1].focus();fields[idx+1].select();}else $('#saveDraft').focus()});
+mountMobileWizard('taskRows', 'task', false);
 $('#saveDraft').onclick=()=>save().catch(e=>notify(e.message,true));$('#backToTasks').onclick=()=>{if(dirty&&!confirm('仍有尚未同步的內容，確定離開？'))return;clearTimeout(draftTimer);editing=null;tab('list');};$('#submitTask').onclick=async()=>{try{clearTimeout(draftTimer);if(rows.some(r=>String(r.quantity).trim()===''||String(r.expiry).trim()===''))throw Error('每筆數量和效期都必須填寫');const rawItems=gather();if(rawItems.some(r=>String(r.quantity).trim()===''||String(r.expiry).trim()===''))throw Error('每筆數量和效期都必須填寫');const items=rawItems.map(normItem);items.forEach(validItem);await save();if(!confirm('確定送審？送出後將鎖定這一輪的原始結果。'))return;const sub={docId:a.docId,roundId,uid:current.uid,items,submittedAt:now()};await p('submissions/'+roundId).set(sub);await p('statuses/'+current.uid+'/'+roundId).set({state:'submitted',label:'已送審'});notify('已送審，幹部雲端後台可查看。');editing=null;tab('list');}catch(err){notify('送審失敗：'+err.message,true)}};
 }
 try{const config=window.VOLUNTEER_FIREBASE_CONFIG;if(!config?.apiKey||!config?.databaseURL)throw Error('尚未設定 firebase-config.js');if(!firebase.apps.length)firebase.initializeApp(config);auth=firebase.auth();db=firebase.database();showAuth();let activeToken=0;auth.onAuthStateChanged(async u=>{const seq=++activeToken;if(!u){loggedUid=null;showAuth();return;}if(loggedUid===u.uid&&current?.uid===u.uid)return;try{await connected(u);if(seq!==activeToken)return;loggedUid=u.uid;}catch(err){showAuth('無法進入工作區：'+err.message);}});}catch(err){root.innerHTML=`<div class="auth card"><h2>系統無法啟動</h2><p>${escapeHTML(err.message)}</p></div>`;}
