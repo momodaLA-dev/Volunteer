@@ -1,0 +1,5 @@
+DO NOT PUBLISH bundled database.rules.json. It is stale and would undo tested permissions.
+Compare the LIVE v9/statuses validation with assigned/submitted support.
+Old: newData.hasChildren(['state','label']) && newData.child('state').val() === 'submitted' && newData.child('label').isString()
+Suggested structural change only: newData.hasChildren(['state','label']) && (newData.child('state').val() === 'submitted' || newData.child('state').val() === 'assigned') && newData.child('label').isString()
+Security: writes are still restricted by .write; validate alone does not authorize writes.

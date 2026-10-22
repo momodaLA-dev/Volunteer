@@ -1,10 +1,8 @@
-VolunteerCare V2.7 | Inventory Submission QA | 2026-10-22
-
-上傳 GitHub：inventory-cloud.js （請先備份同名檔）。
-可選擇上傳：inventory-qa-checklist.html （純離線驗收清單，不會存取 Firebase）。
-請勿覆蓋：index.html, admin.html, unified.js, firebase-config.js。
-Firebase 規則：不更動。
-
-修正：正式送審從當下的 taskRows DOM 逐列擷取數量與效期，拒絕缺失欄位；送審前固定快照，等待已排隊的草稿作業；確認後儲存該快照，再寫入 immutable submission。
-限制：尚未經使用者實際 Firebase 環境進行全流程驗收。
-注意：登入／草稿真實跨裝置競爭／V3／CSV 仍須按驗收清單測試，並將失敗紀錄回報。
+VolunteerCare V2.8 | CoreDraftAndQA | 20261022
+BASED ON: Volunteer-main (1)(1).zip
+DEPLOY: inventory-cloud.js only for production; inventory-test-workbench.html optional, plus 2 existing diagnostic pages if missing.
+DO NOT REPLACE index.html, admin.html, unified.js, firebase-config.js.
+DO NOT PUBLISH bundled stale database.rules.json.
+Changes: preserve Taiwan local date; do not expose quantity/expiry in newly assigned blind task payload; prevent superseded autosave attempts; block temporary transaction null from overwriting known rev > 0; avoid extra submission snapshot save; CSV formula escape.
+Limits: online Firebase not accessed; no claim that all paths or Rules pass; preexisting assigned reference leaks not retroactively cleaned.
+QA: test draft -> reload -> submit -> V2 -> V3 using three real authenticated test accounts.
