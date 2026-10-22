@@ -1,8 +1,14 @@
-VolunteerCare V2.4 | DraftSyncDiagnostic | 2026-10-22
+VolunteerCare V2.5 | DraftSyncSafeRetry | 2026-10-22
 
-獨立診斷頁，不修改既有網站檔。
-只上傳 draft-sync-diagnostic.html。
-使用現有 Firebase Auth 登入身分，讀取 assigned / drafts / submissions；可對已存在的草稿執行「內容不變」transaction，觀察 callback 是否先收到暫時 null。
-不新增主單、不產生複點、不送審、不修改數量與效期；若無草稿或任務已提交，不執行交易。
-Firebase Rules 不需修改。
-測試：同一瀏覽器先登入 inventory-volunteer.html，再訪問 draft-sync-diagnostic.html，按讀取任務及草稿，必要時按測試交易，複製紀錄。
+更新檔案：inventory-cloud.js（只需上傳此檔）
+
+修正：
+1. 雲端草稿 transaction 初次暫時讀到 null 時，仍允許 Firebase 進行伺服器版本核對。
+2. 交易未提交時重新讀取版本；版本不變才安全重試一次。
+3. 真正的版本衝突停止儲存，保護較新雲端草稿。
+4. 成功後再讀取確認 rev，避免直接宣稱同步成功。
+
+保留：志工六分頁、幹部後台、現有選單、登入程式、Firebase 規則。
+不包含登入移除或跳過驗證。
+
+注意：本版已通過本機 JS 語法檢查，尚待 Firebase 實際驗證。

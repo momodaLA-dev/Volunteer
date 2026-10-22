@@ -161,23 +161,41 @@ const save=()=>{
     }
     const expected=oldDraftVersion;
     const payload={rev:expected+1,rows:items,updatedAt:Date.now()};
-    const result=await ref.transaction(data=>{
-      // RTDB may invoke this updater against an initial empty local snapshot.
-      // The warmed cache above makes that uncommon; do not abort a valid
-      // pre-existing draft solely because the initial callback saw null.
-      if(data===null){if(expected!==0)return;return payload;}
-      if((data.rev||0)!==expected)return;
+    // Keep the compare-and-swap guard: only the revision opened by this
+    // screen may be replaced. RTDB may invoke the transaction callback with
+    // null from its local cache before the server value arrives.
+    const attempt=()=>ref.transaction(remote=>{
+      // A tentative null cache result is NOT proof of a remote deletion.
+      // Firebase will retry if the server version differs; once it does,
+      // the revision check below decides whether to commit.
+      if(remote===null)return payload;
+      if((remote.rev||0)!==expected)return;
+      if(remote.state==='submitted')return;
       return payload;
     },undefined,false);
+    let result=await attempt();
+    if(!result.committed){
+      // Distinguish the observed null-cache abort from a genuine concurrent
+      // edit. Only retry when the authoritative read still has our version.
+      const latest=(await ref.once('value')).val();
+      if((latest?.rev||0)===expected && latest?.state!=='submitted'){
+        result=await attempt();
+      }
+    }
     if(!result.committed){
       const latest=(await ref.once('value')).val();
       saveBlocked=true;
-      throw Error('草稿未儲存；雲端版本 '+(latest?.rev??0)+'、目前畫面版本 '+expected+'。請保留畫面內容，返回任務後重新開啟。');
+      throw Error('草稿未儲存；雲端版本 '+(latest?.rev??0)+'、目前畫面版本 '+expected+'。請保留目前輸入，不要覆蓋其他裝置的草稿。');
     }
     const confirmed=result.snapshot.val();
     if(!confirmed||confirmed.rev!==expected+1){
       saveBlocked=true;
       throw Error('草稿寫入後版本核對失敗，請保留畫面並檢查雲端資料。');
+    }
+    const serverCheck=(await ref.once('value')).val();
+    if(!serverCheck||serverCheck.rev!==expected+1){
+      saveBlocked=true;
+      throw Error('草稿交易已回覆但回讀版本不一致，請保留輸入畫面。');
     }
     oldDraftVersion=confirmed.rev;
     if(revision===editRevision){dirty=false;$('#draftMessage').textContent='已同步雲端草稿 · '+new Date().toLocaleTimeString('zh-TW');}
@@ -190,7 +208,7 @@ const save=()=>{
 $('#taskRows').addEventListener('input',()=>{editRevision++;dirty=true;$('#draftMessage').textContent='尚未同步…';clearTimeout(draftTimer);draftTimer=setTimeout(()=>save().catch(e=>notify('草稿同步失敗：'+e.message,true)),950)});
 $('#taskRows').addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();const fields=[...document.querySelectorAll('#taskRows input')],idx=fields.indexOf(e.target);if(idx>=0&&idx<fields.length-1){fields[idx+1].focus();fields[idx+1].select();}else $('#saveDraft').focus()});
 mountMobileWizard('taskRows', 'task', false);
-$('#saveDraft').onclick=()=>save().catch(e=>notify(e.message,true));$('#backToTasks').onclick=()=>{if(dirty&&!confirm('仍有尚未同步的內容，確定離開？'))return;clearTimeout(draftTimer);editing=null;tab('list');};$('#submitTask').onclick=async()=>{const submitButton=$('#submitTask');submitButton.disabled=true;try{clearTimeout(draftTimer);if(rows.some(r=>String(r.quantity).trim()===''||String(r.expiry).trim()===''))throw Error('每筆數量和效期都必須填寫');const rawItems=gather();if(rawItems.some(r=>String(r.quantity).trim()===''||String(r.expiry).trim()===''))throw Error('每筆數量和效期都必須填寫');const items=rawItems.map(normItem);items.forEach(validItem);const priorSub=(await p('submissions/'+roundId).once('value')).val();if(!priorSub)await save();if(!confirm('確定送審？送出後將鎖定這一輪的原始結果。'))return;const subPath='submissions/'+roundId;
+$('#saveDraft').onclick=()=>save().catch(e=>notify(e.message,true));$('#backToTasks').onclick=()=>{if(dirty&&!confirm('仍有尚未同步的內容，確定離開？'))return;clearTimeout(draftTimer);editing=null;tab('list');};$('#submitTask').onclick=async()=>{const submitButton=$('#submitTask');submitButton.disabled=true;try{clearTimeout(draftTimer);const rawItems=gather();if(rawItems.some(r=>String(r.quantity).trim()===''||String(r.expiry).trim()===''))throw Error('每筆數量和效期都必須填寫');const items=rawItems.map(normItem);items.forEach(validItem);const priorSub=(await p('submissions/'+roundId).once('value')).val();if(!priorSub)await save();if(!confirm('確定送審？送出後將鎖定這一輪的原始結果。'))return;const subPath='submissions/'+roundId;
 const existingSub=(await p(subPath).once('value')).val();
 if(existingSub){
   if(existingSub.uid!==current.uid||existingSub.roundId!==roundId||!equalValue(existingSub.items,items))throw Error('這一輪已有不同的送審結果，為保護原始紀錄不覆蓋。請聯繫幹部核對。');
