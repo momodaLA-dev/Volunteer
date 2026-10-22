@@ -1,8 +1,10 @@
-VolunteerCare V2.6 | SubmissionFieldDiagnostic | 2026-10-22
+VolunteerCare V2.7 | Inventory Submission QA | 2026-10-22
 
-目的：只診斷正式清點畫面「每筆數量和效期都必須填寫」錯誤。
+上傳 GitHub：inventory-cloud.js （請先備份同名檔）。
+可選擇上傳：inventory-qa-checklist.html （純離線驗收清單，不會存取 Firebase）。
+請勿覆蓋：index.html, admin.html, unified.js, firebase-config.js。
+Firebase 規則：不更動。
 
-上傳 GitHub：只有 submission-field-diagnostic.html。請勿上傳 CHANGELOG.txt。
-操作：使用已登入 V0002 的同一瀏覽器開啟 https://momodala-dev.github.io/Volunteer/submission-field-diagnostic.html，選 INV-20261022-5AQ5L，讀取任務和草稿，檢查數量與效期，按檢查，複製紀錄。
-
-安全：測試頁僅讀取 Firebase，不寫入、派發、送審、不覆蓋既有資料；亦不改登入、原本選單或正式清點頁。
+修正：正式送審從當下的 taskRows DOM 逐列擷取數量與效期，拒絕缺失欄位；送審前固定快照，等待已排隊的草稿作業；確認後儲存該快照，再寫入 immutable submission。
+限制：尚未經使用者實際 Firebase 環境進行全流程驗收。
+注意：登入／草稿真實跨裝置競爭／V3／CSV 仍須按驗收清單測試，並將失敗紀錄回報。

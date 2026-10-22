@@ -143,11 +143,24 @@ function mountMobileWizard(tableId, type, locked){
 function renderHistory(){const data=Object.entries(assigned).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));$('#view').innerHTML=`<section class="card"><h2>我的任務紀錄</h2>${data.map(([id,a])=>`<div class="task"><strong>${escapeHTML(a.docNo)}｜V${a.roundNo}</strong><p>${escapeHTML(a.title)} · ${escapeHTML(statuses[id]?.label||'待清點')}</p></div>`).join('')||'<p>沒有任務紀錄</p>'}</section>`;}
 const rowKey=(r,i)=>i+'|'+r.warehouse+'|'+r.sku+'|'+r.expiry;
 async function openAssignment(roundId){const a=assigned[roundId];if(!a)return;editing='task';let serverDraft=null;try{serverDraft=(await p('drafts/'+current.uid+'/'+roundId).once('value')).val();}catch(err){notify('讀取草稿失敗：'+err.message,true)}const base=a.reference||[];let rows=base.map((r,i)=>({warehouse:r.warehouse,sku:r.sku,quantity:a.mode==='visible'?r.quantity:'',expiry:a.mode==='visible'?r.expiry:'',...(serverDraft?.rows?.[i]||{})}));oldDraftVersion=serverDraft?.rev||0;dirty=false;$('#view').innerHTML=`<section class="card"><div class="row between"><div><h2>${escapeHTML(a.docNo)}｜V${a.roundNo}</h2><p class="muted">${escapeHTML(a.title)} · ${a.mode==='blind'?'獨立輸入：不顯示參考數量及效期':'核對模式：已帶入參考數量與效期'}</p></div><button class="secondary" id="backToTasks">返回</button></div><p class="notice" id="draftMessage">${serverDraft?'已載入雲端草稿':'尚未儲存草稿'}</p><div class="tablewrap"><table><thead><tr><th>倉別</th><th>品號</th><th>實際數量</th><th>效期 YYYYMM</th></tr></thead><tbody id="taskRows">${rows.map((r,i)=>`<tr><td>${escapeHTML(r.warehouse)}</td><td>${escapeHTML(r.sku)}</td><td><input data-n="${i}" data-k="quantity" type="number" min="0" step="1" value="${escapeHTML(r.quantity)}" placeholder="數量"></td><td><input data-n="${i}" data-k="expiry" inputmode="numeric" maxlength="6" value="${escapeHTML(r.expiry)}" placeholder="YYYYMM"></td></tr>`).join('')}</tbody></table></div><div class="sticky"><button id="saveDraft" class="secondary">儲存雲端草稿</button><button id="submitTask">確認送審（送出後不能修改）</button></div></section>`;
-const gather=()=>{document.querySelectorAll('#taskRows [data-n]').forEach(el=>rows[Number(el.dataset.n)][el.dataset.k]=el.value);return rows.map(r=>({warehouse:r.warehouse,sku:r.sku,quantity:r.quantity,expiry:r.expiry}))};
+// V2.7: Read only this task's live input controls, not an older in-memory row snapshot.
+// Fail visibly if a row/input went missing (e.g. mobile wizard changing the DOM).
+const gather=()=>{
+  const table=$('#taskRows');
+  if(!table)throw Error('找不到目前任務的輸入表格，請保留畫面並重新開啟。');
+  const trs=[...table.querySelectorAll('tr')];
+  if(trs.length!==base.length)throw Error('清點列數異常：畫面 '+trs.length+' 筆／任務 '+base.length+' 筆，停止送審以免遺漏。');
+  return trs.map((tr,i)=>{
+    const q=tr.querySelector('[data-k="quantity"]');
+    const e=tr.querySelector('[data-k="expiry"]');
+    if(!q||!e)throw Error('第 '+(i+1)+' 筆輸入欄位未載入，請勿送審。');
+    return {warehouse:base[i].warehouse,sku:base[i].sku,quantity:q.value,expiry:e.value};
+  });
+};
 // V2.0: Serialize all draft writes, including the final save before submission.
 // A transaction first runs against a local cache; explicitly warm it with once('value').
 // Never replace a newer remote version or treat a concurrent local autosave as another device.
-let saveQueue=Promise.resolve(), editRevision=0, saveBlocked=false;
+let saveQueue=Promise.resolve(), editRevision=0, saveBlocked=false, submitting=false;
 const save=()=>{
   const revision=editRevision;
   const items=gather(); // Take the snapshot now, not after previous async saves finish.
@@ -205,10 +218,32 @@ const save=()=>{
   saveQueue=job.catch(()=>{}); // Keep the queue usable so errors can be surfaced to the caller.
   return job;
 };
-$('#taskRows').addEventListener('input',()=>{editRevision++;dirty=true;$('#draftMessage').textContent='尚未同步…';clearTimeout(draftTimer);draftTimer=setTimeout(()=>save().catch(e=>notify('草稿同步失敗：'+e.message,true)),950)});
+$('#taskRows').addEventListener('input',()=>{if(submitting)return;editRevision++;dirty=true;$('#draftMessage').textContent='尚未同步…';clearTimeout(draftTimer);draftTimer=setTimeout(()=>save().catch(e=>notify('草稿同步失敗：'+e.message,true)),950)});
 $('#taskRows').addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();const fields=[...document.querySelectorAll('#taskRows input')],idx=fields.indexOf(e.target);if(idx>=0&&idx<fields.length-1){fields[idx+1].focus();fields[idx+1].select();}else $('#saveDraft').focus()});
 mountMobileWizard('taskRows', 'task', false);
-$('#saveDraft').onclick=()=>save().catch(e=>notify(e.message,true));$('#backToTasks').onclick=()=>{if(dirty&&!confirm('仍有尚未同步的內容，確定離開？'))return;clearTimeout(draftTimer);editing=null;tab('list');};$('#submitTask').onclick=async()=>{const submitButton=$('#submitTask');submitButton.disabled=true;try{clearTimeout(draftTimer);const rawItems=gather();if(rawItems.some(r=>String(r.quantity).trim()===''||String(r.expiry).trim()===''))throw Error('每筆數量和效期都必須填寫');const items=rawItems.map(normItem);items.forEach(validItem);const priorSub=(await p('submissions/'+roundId).once('value')).val();if(!priorSub)await save();if(!confirm('確定送審？送出後將鎖定這一輪的原始結果。'))return;const subPath='submissions/'+roundId;
+$('#saveDraft').onclick=()=>save().catch(e=>notify(e.message,true));$('#backToTasks').onclick=()=>{if(dirty&&!confirm('仍有尚未同步的內容，確定離開？'))return;clearTimeout(draftTimer);editing=null;tab('list');};$('#submitTask').onclick=async()=>{
+  const submitButton=$('#submitTask'); if(submitting)return;
+  submitting=true;submitButton.disabled=true;
+  try{
+    clearTimeout(draftTimer);
+    // Snapshot values BEFORE any await or other asynchronous writes.
+    const rawItems=gather();
+    if(rawItems.some(r=>String(r.quantity).trim()===''||String(r.expiry).trim()===''))throw Error('每筆數量和效期都必須填寫');
+    const items=rawItems.map(normItem);items.forEach(validItem);
+    if(!confirm('確定送審？送出後將鎖定這一輪的原始結果。'))return;
+    // Wait for already queued autosaves and then persist the exact on-screen
+    // snapshot, not a stale copy in the original reference rows.
+    await saveQueue;
+    const submissionExists=(await p('submissions/'+roundId).once('value')).val();
+    if(!submissionExists){
+      const ref=p('drafts/'+current.uid+'/'+roundId);
+      const remote=(await ref.once('value')).val();
+      if((remote?.rev||0)!==oldDraftVersion)throw Error('送審前偵測到較新的雲端草稿：雲端 rev='+(remote?.rev||0)+'、本機 rev='+oldDraftVersion+'，請保留輸入內容。');
+      // A submitted record is authoritative. The draft is best-effort;
+      // its failure must not silently replace the submitted data.
+      await save();
+    }
+    const subPath='submissions/'+roundId;
 const existingSub=(await p(subPath).once('value')).val();
 if(existingSub){
   if(existingSub.uid!==current.uid||existingSub.roundId!==roundId||!equalValue(existingSub.items,items))throw Error('這一輪已有不同的送審結果，為保護原始紀錄不覆蓋。請聯繫幹部核對。');
@@ -221,7 +256,7 @@ if(existingSub){
 await p('statuses/'+current.uid+'/'+roundId).set({state:'submitted',label:'已送審'});
 const confirmedStatus=(await p('statuses/'+current.uid+'/'+roundId).once('value')).val();
 if(!equalValue(confirmedStatus,{state:'submitted',label:'已送審'}))throw Error('已送出結果，但狀態回讀未確認；請保留畫面並重新送審修復狀態。');
-editing=null;tab('list');notify('送審成功：雲端提交及狀態已核對。');}catch(err){notify('送審失敗：'+err.message,true)}finally{if(submitButton.isConnected)submitButton.disabled=false}};
+editing=null;tab('list');notify('送審成功：雲端提交及狀態已核對。');}catch(err){notify('送審失敗：'+err.message,true)}finally{submitting=false;if(submitButton.isConnected)submitButton.disabled=false}};
 }
 try{const config=window.VOLUNTEER_FIREBASE_CONFIG;if(!config?.apiKey||!config?.databaseURL)throw Error('尚未設定 firebase-config.js');if(!firebase.apps.length)firebase.initializeApp(config);auth=firebase.auth();db=firebase.database();showAuth();let activeToken=0;auth.onAuthStateChanged(async u=>{const seq=++activeToken;if(!u){loggedUid=null;showAuth();return;}if(loggedUid===u.uid&&current?.uid===u.uid)return;try{await connected(u);if(seq!==activeToken)return;loggedUid=u.uid;}catch(err){showAuth('無法進入工作區：'+err.message);}});}catch(err){root.innerHTML=`<div class="auth card"><h2>系統無法啟動</h2><p>${escapeHTML(err.message)}</p></div>`;}
 })();
