@@ -1,13 +1,17 @@
-暖心同行｜複點 V2 派發修正（2026-10-22）
+VolunteerCare V2.9 IntegrationTest (2026-10-22)
 
-修正範圍：
-1. 清點模組志工選單會顯示已確認 UID 的 V0001 小安、V0002 小恩；其他志工仍從 Firebase /v9/directory 讀取，新增名單請在「志工帳號名冊」填寫正確 Firebase UID。
-2. 管理員派發 V2/V3 時：送出後必須回讀 rounds、assigned、statuses，確認三處資料存在才顯示成功。
-3. 派發進行時停用送出按鈕，降低連續點擊重複產生任務的風險。
-4. 原本 index.html、admin.html、firebase-config.js、Firebase 資料庫規則不修改。
+這次才是真正可操作的雲端測試工具，不是只有核取方塊的檢查表。
+請只將 inventory-integration-test.html 上傳到 GitHub Volunteer 專案根目錄。
+網址：https://momodala-dev.github.io/Volunteer/inventory-integration-test.html
 
-上傳：把 ZIP 內四個網站檔案上傳至 GitHub 專案根目錄，覆蓋同名檔案並 Commit。切勿上傳 README 以外的私人備份。
+既有 firebase-config.js 必須存在於同一目錄；需可載入 Google Firebase CDN。
+每個帳號在獨立瀏覽器環境登入，或直接使用有效的既有 Firebase 登入狀態。
+帳號：A0001、V0001、V0002；請使用本人原 PIN（未儲存 PIN）。
 
-測試：幹部 A0001 -> 清點紀錄／複點 -> 已有 V1 送審的單據 -> 查看／複點 -> 選小恩 V0002 -> 全單複點 -> 建立並派發 V2。成功後用 V0002 登入 inventory-volunteer.html 確認 V2 任務。
+路線 A：幹部 A0001「建立並指派 V1」→志工 V0001「讀取任務、填資料、存草稿、讀回、提交」→幹部派 V2 給 V0002→小恩提交→幹部比對與 CSV→可繼續派 V3。
+路線 B：志工 V0001 填資料、按「自行送出 V1」→幹部「接收志工自行 V1」→派 V2 給 V0002→提交、比對、CSV。
 
-注意：原本首頁的「示範志工名冊」是本機資料，並非 Firebase 身分名冊；此修正對已知兩個帳號使用已驗證的 Firebase UID 作為過渡名冊，並不會同步本機名冊。未實機驗證正式環境，派發需依實際結果確認。
+所有測試單使用 TEST29- 前綴；不覆蓋正式 INV、SELF 或以前的 DIAG 單。測試資料仍會寫入同一 Firebase 正式專案的 v9 節點，請只用假資料。沒有自動清理（防止誤刪）。
+提示：實際 Firebase 網路／帳號／規則驗收尚未執行，產生的測試記錄會逐步顯示詳細權限錯誤。
+如既有登入系統遭隱藏，可在本測試頁直接用帳號與原 PIN 登入；不會繞過 Firebase Auth。
+目前測試工具尚不包含安全的離線佇列、完整跨裝置版本合併或正式交易性的跨節點派發；這些要在驗收後再進行正式程式整合。
