@@ -1,17 +1,8 @@
-VolunteerCare V2.2 - PreviewGateFreeze - 2026-10-22
+VolunteerCare V2.4 | DraftSyncDiagnostic | 2026-10-22
 
-原因：主畫面被 unified login gate 隱藏；清點選單轉向 Firebase 模組。
-
-本更新只替換：index.html / admin.html / unified.js。
-不覆蓋 app.js、inventory-cloud.js、firebase-config.js、database.rules.json。
-
-更新內容：
-1. 未登入直接顯示原版志工六分頁及幹部選單（本機示範模式）。
-2. 原版登入表單保留並隱藏；只有明確要求使用雲端功能時可自選開啟。
-3. 兩個頁面提供志工／幹部預覽切換。
-4. 沒有 Firebase 身分驗證時，雲端清點顯示說明，不會假冒權限或開放寫入。
-5. 本更新不會修復既有帳號的 invalid-credential；登入功能後續另修。
-
-注意：原版其他分頁有些資料儲存在瀏覽器 localStorage，不會自動從 Firebase 匯入。
-強制重新整理（Ctrl+Shift+R）；如果為 PWA，留意 service worker 舊快取。
-先備份 GitHub 的 3 個同名檔案，再覆蓋。
+獨立診斷頁，不修改既有網站檔。
+只上傳 draft-sync-diagnostic.html。
+使用現有 Firebase Auth 登入身分，讀取 assigned / drafts / submissions；可對已存在的草稿執行「內容不變」transaction，觀察 callback 是否先收到暫時 null。
+不新增主單、不產生複點、不送審、不修改數量與效期；若無草稿或任務已提交，不執行交易。
+Firebase Rules 不需修改。
+測試：同一瀏覽器先登入 inventory-volunteer.html，再訪問 draft-sync-diagnostic.html，按讀取任務及草稿，必要時按測試交易，複製紀錄。
