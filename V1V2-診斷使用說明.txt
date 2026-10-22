@@ -1,0 +1,18 @@
+暖心同行｜V1 → V2 雲端路徑診斷（2026-10-22）
+
+這是獨立診斷頁，不覆蓋既有 index.html、admin.html、inventory-cloud.js、Firebase 規則。
+
+上傳 GitHub：只需要上傳 v1-v2-diagnostic.html 至 Volunteer 專案根目錄。
+網址：https://momodala-dev.github.io/Volunteer/v1-v2-diagnostic.html
+需要同一目錄已有正確的 firebase-config.js。
+
+步驟：
+0. 幹部 A0001 登入 → 點「建立測試 V1」→ 登出。
+1. 小安 V0001 登入 → 點「送出 V1」→ 登出。
+2. 幹部 A0001 登入 → 點「派發 V2」→ 登出。
+3. 小恩 V0002 登入 → 點「送出 V2」→ 登出。
+4. 幹部 A0001 登入 → 點「確認 V1／V2」。
+
+每次寫入都記錄具體 Firebase 路徑並回讀。遇 PERMISSION_DENIED 停下，複製診斷紀錄回報；不要連續重按以免產生半成品。
+
+注意：此頁會在 v9/documents、rounds、assigned、statuses、submissions 寫入真實標有 DIAG-V12- 的測試資料，不會修改既有 SELF 單。測試資料會保留在資料庫供排查；正式使用前應由管理員確認後清理 DIAG 資料。請勿以真實庫存資料測試。
