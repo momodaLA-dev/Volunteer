@@ -1,8 +1,28 @@
-VolunteerCare V2.0 | 2026-10-22 | DraftSyncConflictFix
+VolunteerCare V2.1 - Inventory Draft & Submission Fix
+Date: 2026-10-22
 
-Issue: entering a quantity in an assigned task immediately showed a false cloud draft conflict.
-Fix: queue autosave/manual save/submission saves; read the current revision before each write; allow Firebase transactions to initialize against an empty local cache without aborting a valid remote draft. Keep genuine multi-device revision conflict protection.
+UPLOAD TO GITHUB:
+  inventory-cloud.js ONLY (repository root, replacing previous version)
 
-Upload ONLY inventory-cloud.js to the repository root, overwriting the old file. Do not replace index.html, admin.html, firebase-config.js or any other file. No Firebase rule update needed.
+KEEP UNCHANGED:
+  index.html / admin.html / inventory-volunteer.html / inventory-admin.html
+  firebase-config.js / Firebase RTDB rules / existing data
 
-Test with a DIAG/new test task, not production inventory. If the error remains, copy the exact error and export current /v9/drafts entry without deleting it.
+CHANGES:
+  1) Queue self-count autosaves to prevent late autosaves racing with submit.
+  2) Require cloud submission readback before marking assigned task complete.
+  3) On retry, preserve matching immutable submission and repair missing submitted status.
+  4) Improve stale draft version diagnosis; never silently overwrite newer draft.
+  5) Disable submit button while an attempt is underway.
+
+LIMITATIONS:
+  No live Firebase deployment test was performed. Actual multiple-device
+  draft conflict and mid-write network-failure recovery still require testing.
+  The original admin dispatch logic remains as in V2.0; this patch does not
+  claim to finish V3 abnormal-item filtering or CSV acceptance testing.
+
+TEST (test documents only):
+  - Back up inventory-cloud.js. Upload just replacement and hard-refresh.
+  - V0002 open unfinished V1/V2 test, edit once, wait for cloud sync.
+  - Reopen, verify values persist. Submit and check admin's record.
+  - Do not test against live inventory without backup.

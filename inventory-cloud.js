@@ -72,9 +72,10 @@ function renderSelfCreate(existingId){
  const tb=$('#selfLines');function add(r={}){const tr=document.createElement('tr');tr.innerHTML=`<td><select data-k="warehouse" ${locked?'disabled':''}><option>008倉</option><option>0089倉</option><option>0088倉</option></select></td><td><input data-k="sku" inputmode="numeric" maxlength="2" placeholder="01" value="${escapeHTML(r.sku||'')}" ${locked?'disabled':''}></td><td><input data-k="quantity" inputmode="numeric" type="number" min="0" step="1" placeholder="數量" value="${escapeHTML(r.quantity??'')}" ${locked?'disabled':''}></td><td><input data-k="expiry" inputmode="numeric" maxlength="6" placeholder="YYYYMM" value="${escapeHTML(r.expiry||'')}" ${locked?'disabled':''}></td><td><button type="button" class="secondary" ${locked?'disabled':''}>×</button></td>`;tb.appendChild(tr);tr.querySelector('select').value=r.warehouse||'008倉';tr.querySelector('button').onclick=()=>{if(tb.children.length>1){tr.remove();dirty=true}}}
  rows.forEach(add);
  const gather=()=>[...tb.querySelectorAll('tr')].map(tr=>Object.fromEntries([...tr.querySelectorAll('[data-k]')].map(el=>[el.dataset.k,el.value])));
- const save=async(submit=false)=>{const title=$('#selfTitle').value.trim();if(!title)throw Error('請先輸入清點單名稱');const items=gather();if(submit){items.forEach((r,i)=>{if(String(r.quantity).trim()==='')throw Error(`第 ${i+1} 筆數量尚未填寫`);validItem(normItem(r),i)});}const ref=p('selfCounts/'+current.uid+'/'+id);const payload={uid:current.uid,docNo:data.docNo||('SELF-'+new Date().toISOString().slice(0,10).replaceAll('-','')+'-'+id.slice(-5).toUpperCase()),title,kind:'incoming',state:submit?'submitted':'draft',createdAt:data.createdAt||Date.now(),updatedAt:Date.now(),items:submit?items.map(normItem):items};if(submit)payload.submittedAt=Date.now();const tx=await ref.transaction(cur=>{if(cur?.state==='submitted')return;return {...cur,...payload}},undefined,false);if(!tx.committed)throw Error('此單已送審，無法再覆寫');dirty=false;$('#selfState').textContent=submit?'送審成功，幹部後台可查看':'雲端草稿已儲存 · '+new Date().toLocaleTimeString('zh-TW');return true};
- const unsaved=()=>{dirty=true;$('#selfState').textContent='尚未同步…';clearTimeout(draftTimer);draftTimer=setTimeout(()=>save().catch(e=>notify('草稿同步失敗：'+e.message,true)),1600)};
- if(!locked){tb.addEventListener('input',unsaved);$('#selfTitle').addEventListener('input',()=>{if($('#selfTitle').value.trim())unsaved()});tb.addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();const fields=[...tb.querySelectorAll('input:not(:disabled)')];const i=fields.indexOf(e.target);if(i>=0){if(i===fields.length-1){add();tb.lastElementChild.querySelector('input').focus();}else fields[i+1].focus();}});$('#selfAdd').onclick=()=>{add();tb.lastElementChild.querySelector('input').focus();unsaved()};$('#selfSave').onclick=()=>{clearTimeout(draftTimer);save().catch(e=>notify(e.message,true))};$('#selfSubmit').onclick=async()=>{clearTimeout(draftTimer);if(!confirm('確定送審？之後不可自行修改。'))return;try{await save(true);editing=null;tab('list')}catch(e){notify('送審失敗：'+e.message,true)}};}
+ let selfSaveQueue=Promise.resolve(),selfRevision=0;
+ const save=(submit=false)=>{const title=$('#selfTitle').value.trim();if(!title)throw Error('請先輸入清點單名稱');const items=gather();if(submit){items.forEach((r,i)=>{if(String(r.quantity).trim()==='')throw Error(`第 ${i+1} 筆數量尚未填寫`);validItem(normItem(r),i)});}const ref=p('selfCounts/'+current.uid+'/'+id);const revision=selfRevision;const payload={uid:current.uid,docNo:data.docNo||('SELF-'+new Date().toISOString().slice(0,10).replaceAll('-','')+'-'+id.slice(-5).toUpperCase()),title,kind:'incoming',state:submit?'submitted':'draft',createdAt:data.createdAt||Date.now(),updatedAt:Date.now(),items:submit?items.map(normItem):items};if(submit)payload.submittedAt=Date.now();const job=selfSaveQueue.then(async()=>{const tx=await ref.transaction(cur=>{if(cur?.state==='submitted')return;return {...cur,...payload}},undefined,false);if(!tx.committed)throw Error('此單已送審，無法再覆寫');if(revision===selfRevision){dirty=false;$('#selfState').textContent=submit?'送審成功，幹部後台可查看':'雲端草稿已儲存 · '+new Date().toLocaleTimeString('zh-TW');}return true});selfSaveQueue=job.catch(()=>{});return job};
+ const unsaved=()=>{selfRevision++;dirty=true;$('#selfState').textContent='尚未同步…';clearTimeout(draftTimer);draftTimer=setTimeout(()=>save().catch(e=>notify('草稿同步失敗：'+e.message,true)),1600)};
+ if(!locked){tb.addEventListener('input',unsaved);$('#selfTitle').addEventListener('input',()=>{if($('#selfTitle').value.trim())unsaved()});tb.addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();const fields=[...tb.querySelectorAll('input:not(:disabled)')];const i=fields.indexOf(e.target);if(i>=0){if(i===fields.length-1){add();tb.lastElementChild.querySelector('input').focus();}else fields[i+1].focus();}});$('#selfAdd').onclick=()=>{add();tb.lastElementChild.querySelector('input').focus();unsaved()};$('#selfSave').onclick=()=>{clearTimeout(draftTimer);save().catch(e=>notify(e.message,true))};$('#selfSubmit').onclick=async()=>{clearTimeout(draftTimer);if(!confirm('確定送審？之後不可自行修改。'))return;const button=$('#selfSubmit');button.disabled=true;try{await save(true);editing=null;tab('list');notify('V1 已送審，幹部可在自行清點單查看。')}catch(e){notify('送審失敗：'+e.message,true)}finally{if(button.isConnected)button.disabled=false}};}
  $('#selfBack').onclick=()=>{if(dirty&&!confirm('尚有未同步的內容，確定返回？'))return;clearTimeout(draftTimer);editing=null;tab('list')};
  mountMobileWizard('selfLines', 'self', locked);
 }
@@ -164,13 +165,14 @@ const save=()=>{
       // RTDB may invoke this updater against an initial empty local snapshot.
       // The warmed cache above makes that uncommon; do not abort a valid
       // pre-existing draft solely because the initial callback saw null.
-      if(data===null)return payload;
+      if(data===null){if(expected!==0)return;return payload;}
       if((data.rev||0)!==expected)return;
       return payload;
     },undefined,false);
     if(!result.committed){
+      const latest=(await ref.once('value')).val();
       saveBlocked=true;
-      throw Error('雲端草稿已被其他視窗更新，為避免覆蓋已停止儲存。請保留畫面內容。');
+      throw Error('草稿未儲存；雲端版本 '+(latest?.rev??0)+'、目前畫面版本 '+expected+'。請保留畫面內容，返回任務後重新開啟。');
     }
     const confirmed=result.snapshot.val();
     if(!confirmed||confirmed.rev!==expected+1){
@@ -188,7 +190,20 @@ const save=()=>{
 $('#taskRows').addEventListener('input',()=>{editRevision++;dirty=true;$('#draftMessage').textContent='尚未同步…';clearTimeout(draftTimer);draftTimer=setTimeout(()=>save().catch(e=>notify('草稿同步失敗：'+e.message,true)),950)});
 $('#taskRows').addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();const fields=[...document.querySelectorAll('#taskRows input')],idx=fields.indexOf(e.target);if(idx>=0&&idx<fields.length-1){fields[idx+1].focus();fields[idx+1].select();}else $('#saveDraft').focus()});
 mountMobileWizard('taskRows', 'task', false);
-$('#saveDraft').onclick=()=>save().catch(e=>notify(e.message,true));$('#backToTasks').onclick=()=>{if(dirty&&!confirm('仍有尚未同步的內容，確定離開？'))return;clearTimeout(draftTimer);editing=null;tab('list');};$('#submitTask').onclick=async()=>{try{clearTimeout(draftTimer);if(rows.some(r=>String(r.quantity).trim()===''||String(r.expiry).trim()===''))throw Error('每筆數量和效期都必須填寫');const rawItems=gather();if(rawItems.some(r=>String(r.quantity).trim()===''||String(r.expiry).trim()===''))throw Error('每筆數量和效期都必須填寫');const items=rawItems.map(normItem);items.forEach(validItem);await save();if(!confirm('確定送審？送出後將鎖定這一輪的原始結果。'))return;const sub={docId:a.docId,roundId,uid:current.uid,items,submittedAt:now()};await p('submissions/'+roundId).set(sub);await p('statuses/'+current.uid+'/'+roundId).set({state:'submitted',label:'已送審'});notify('已送審，幹部雲端後台可查看。');editing=null;tab('list');}catch(err){notify('送審失敗：'+err.message,true)}};
+$('#saveDraft').onclick=()=>save().catch(e=>notify(e.message,true));$('#backToTasks').onclick=()=>{if(dirty&&!confirm('仍有尚未同步的內容，確定離開？'))return;clearTimeout(draftTimer);editing=null;tab('list');};$('#submitTask').onclick=async()=>{const submitButton=$('#submitTask');submitButton.disabled=true;try{clearTimeout(draftTimer);if(rows.some(r=>String(r.quantity).trim()===''||String(r.expiry).trim()===''))throw Error('每筆數量和效期都必須填寫');const rawItems=gather();if(rawItems.some(r=>String(r.quantity).trim()===''||String(r.expiry).trim()===''))throw Error('每筆數量和效期都必須填寫');const items=rawItems.map(normItem);items.forEach(validItem);const priorSub=(await p('submissions/'+roundId).once('value')).val();if(!priorSub)await save();if(!confirm('確定送審？送出後將鎖定這一輪的原始結果。'))return;const subPath='submissions/'+roundId;
+const existingSub=(await p(subPath).once('value')).val();
+if(existingSub){
+  if(existingSub.uid!==current.uid||existingSub.roundId!==roundId||!equalValue(existingSub.items,items))throw Error('這一輪已有不同的送審結果，為保護原始紀錄不覆蓋。請聯繫幹部核對。');
+}else{
+  const sub={docId:a.docId,roundId,uid:current.uid,items,submittedAt:Date.now()};
+  await checkedWrite('v9/'+subPath,sub);
+}
+// If the submission succeeded but the status write failed, repeating the same
+// submission repairs only its status instead of overwriting the immutable V1/V2.
+await p('statuses/'+current.uid+'/'+roundId).set({state:'submitted',label:'已送審'});
+const confirmedStatus=(await p('statuses/'+current.uid+'/'+roundId).once('value')).val();
+if(!equalValue(confirmedStatus,{state:'submitted',label:'已送審'}))throw Error('已送出結果，但狀態回讀未確認；請保留畫面並重新送審修復狀態。');
+editing=null;tab('list');notify('送審成功：雲端提交及狀態已核對。');}catch(err){notify('送審失敗：'+err.message,true)}finally{if(submitButton.isConnected)submitButton.disabled=false}};
 }
 try{const config=window.VOLUNTEER_FIREBASE_CONFIG;if(!config?.apiKey||!config?.databaseURL)throw Error('尚未設定 firebase-config.js');if(!firebase.apps.length)firebase.initializeApp(config);auth=firebase.auth();db=firebase.database();showAuth();let activeToken=0;auth.onAuthStateChanged(async u=>{const seq=++activeToken;if(!u){loggedUid=null;showAuth();return;}if(loggedUid===u.uid&&current?.uid===u.uid)return;try{await connected(u);if(seq!==activeToken)return;loggedUid=u.uid;}catch(err){showAuth('無法進入工作區：'+err.message);}});}catch(err){root.innerHTML=`<div class="auth card"><h2>系統無法啟動</h2><p>${escapeHTML(err.message)}</p></div>`;}
 })();
