@@ -1,16 +1,7 @@
-VolunteerCare V1.7 - OneLogin ThreeBrowsers - 2026-10-22
-
-修改：
-1. Firebase Auth 使用 LOCAL persistence，刷新頁面保留登入；已登入相同帳號不需重輸 PIN。
-2. 顯示真實已驗證帳號與對應可執行步驟；不允許未登入/錯誤帳號按測試按鈕。
-3. 新增「檢查目前身分」按鈕，避免同一瀏覽器分頁切換混淆。
-4. 維持 V1.5 欄位順序無關的回讀比較與 V1.6 已修正的 Firebase 規則相容。
-5. 保留兩種起點：A0001 先派發；V0001 自行發起。
-
-上傳 GitHub：只需 v1-v2-diagnostic.html，覆蓋同名檔案。
-Firebase 規則：不用更動。
-不修改：index.html、admin.html、firebase-config.js、現有清點單。
-
-建議：Chrome 正常視窗 A0001；Edge 正常視窗 V0001；另一個 Chrome 瀏覽器設定檔 V0002。
-無痕模式關閉後登入狀態會清除；如需持續保留請用獨立瀏覽器設定檔。
-每個帳號仍需首次驗證登入；不存 PIN 到診斷頁。
+VolunteerCare V1.8 — 2026-10-22
+修正路線 B：V0001 自行在 v9/selfCounts 建立並提交原始 V1，A0001 只能接收後建主單。
+新增路線 A/B 明確選擇，預設 B，避免錯誤取用舊 DIAG 主單。
+若有尚未被幹部接收的 SELF 診斷單則沿用；已完成的測試可重新從小安建立新單。
+登入仍需各瀏覽器首次驗證，後續不需重複登入。
+只需將 v1-v2-diagnostic.html 上傳至 GitHub 專案根目錄。
+不用修改 Firebase 規則或正式清點程式。
