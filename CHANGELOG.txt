@@ -1,15 +1,8 @@
-VolunteerCare V1.9 | InventoryRecountIntegration | 2026-10-22
+VolunteerCare V2.0 | 2026-10-22 | DraftSyncConflictFix
 
-UPDATE: inventory-cloud.js ONLY (copy to repository root).
+Issue: entering a quantity in an assigned task immediately showed a false cloud draft conflict.
+Fix: queue autosave/manual save/submission saves; read the current revision before each write; allow Firebase transactions to initialize against an empty local cache without aborting a valid remote draft. Keep genuine multi-device revision conflict protection.
 
-1. Admin-created V1: individual cloud writes and readback for documents, rounds, assigned, statuses.
-2. Volunteer-self V1 promotion: individual cloud writes and readback for documents, rounds, submissions and linkedDocId.
-3. Recount V2/V3+: individual cloud writes and readback for rounds, assigned, statuses and currentRound.
-4. Detect existing round number on server to prevent repeated dispatch after partial failure.
-5. Preserve existing original app.js, index.html, admin.html, CSS, Firebase config, Auth, drafts, CSV and six-tab volunteer UI.
+Upload ONLY inventory-cloud.js to the repository root, overwriting the old file. Do not replace index.html, admin.html, firebase-config.js or any other file. No Firebase rule update needed.
 
-NOTE: Does not rewrite past partially-created rounds automatically; if a partial round exists, program warns rather than duplicating.
-NOTE: Do not replace the production Firebase rules; V1.6 status=assigned rule remains necessary.
-NOTE: Not yet verified with a live production Firebase account. Test with a DIAG/test document, not real stock.
-
-GitHub upload: inventory-cloud.js only, root folder, Commit Changes. Hard-refresh the inventory page once deployed.
+Test with a DIAG/new test task, not production inventory. If the error remains, copy the exact error and export current /v9/drafts entry without deleting it.

@@ -143,8 +143,49 @@ function renderHistory(){const data=Object.entries(assigned).sort((a,b)=>(b[1].c
 const rowKey=(r,i)=>i+'|'+r.warehouse+'|'+r.sku+'|'+r.expiry;
 async function openAssignment(roundId){const a=assigned[roundId];if(!a)return;editing='task';let serverDraft=null;try{serverDraft=(await p('drafts/'+current.uid+'/'+roundId).once('value')).val();}catch(err){notify('讀取草稿失敗：'+err.message,true)}const base=a.reference||[];let rows=base.map((r,i)=>({warehouse:r.warehouse,sku:r.sku,quantity:a.mode==='visible'?r.quantity:'',expiry:a.mode==='visible'?r.expiry:'',...(serverDraft?.rows?.[i]||{})}));oldDraftVersion=serverDraft?.rev||0;dirty=false;$('#view').innerHTML=`<section class="card"><div class="row between"><div><h2>${escapeHTML(a.docNo)}｜V${a.roundNo}</h2><p class="muted">${escapeHTML(a.title)} · ${a.mode==='blind'?'獨立輸入：不顯示參考數量及效期':'核對模式：已帶入參考數量與效期'}</p></div><button class="secondary" id="backToTasks">返回</button></div><p class="notice" id="draftMessage">${serverDraft?'已載入雲端草稿':'尚未儲存草稿'}</p><div class="tablewrap"><table><thead><tr><th>倉別</th><th>品號</th><th>實際數量</th><th>效期 YYYYMM</th></tr></thead><tbody id="taskRows">${rows.map((r,i)=>`<tr><td>${escapeHTML(r.warehouse)}</td><td>${escapeHTML(r.sku)}</td><td><input data-n="${i}" data-k="quantity" type="number" min="0" step="1" value="${escapeHTML(r.quantity)}" placeholder="數量"></td><td><input data-n="${i}" data-k="expiry" inputmode="numeric" maxlength="6" value="${escapeHTML(r.expiry)}" placeholder="YYYYMM"></td></tr>`).join('')}</tbody></table></div><div class="sticky"><button id="saveDraft" class="secondary">儲存雲端草稿</button><button id="submitTask">確認送審（送出後不能修改）</button></div></section>`;
 const gather=()=>{document.querySelectorAll('#taskRows [data-n]').forEach(el=>rows[Number(el.dataset.n)][el.dataset.k]=el.value);return rows.map(r=>({warehouse:r.warehouse,sku:r.sku,quantity:r.quantity,expiry:r.expiry}))};
-const save=async()=>{const items=gather(),ref=p('drafts/'+current.uid+'/'+roundId);const res=await ref.transaction(data=>{if((data?.rev||0)!==oldDraftVersion)return;return {rev:oldDraftVersion+1,rows:items,updatedAt:now()}},undefined,false);if(!res.committed)throw Error('其他裝置已有較新草稿，為避免覆蓋已停止儲存。請先重新開啟任務載入最新內容。');oldDraftVersion++;dirty=false;$('#draftMessage').textContent='已同步雲端草稿 · '+new Date().toLocaleTimeString('zh-TW');return items};
-$('#taskRows').addEventListener('input',()=>{dirty=true;$('#draftMessage').textContent='尚未同步…';clearTimeout(draftTimer);draftTimer=setTimeout(()=>save().catch(e=>notify('草稿同步失敗：'+e.message,true)),950)});
+// V2.0: Serialize all draft writes, including the final save before submission.
+// A transaction first runs against a local cache; explicitly warm it with once('value').
+// Never replace a newer remote version or treat a concurrent local autosave as another device.
+let saveQueue=Promise.resolve(), editRevision=0, saveBlocked=false;
+const save=()=>{
+  const revision=editRevision;
+  const items=gather(); // Take the snapshot now, not after previous async saves finish.
+  const run=async()=>{
+    if(saveBlocked)throw Error('雲端草稿版本有衝突，請先保留目前輸入資料並重新開啟任務。');
+    const ref=p('drafts/'+current.uid+'/'+roundId);
+    const before=(await ref.once('value')).val();
+    if((before?.rev||0)!==oldDraftVersion){
+      saveBlocked=true;
+      throw Error('雲端已有其他視窗更新的草稿；為保護輸入資料，請先保留畫面內容，再重新開啟任務。');
+    }
+    const expected=oldDraftVersion;
+    const payload={rev:expected+1,rows:items,updatedAt:Date.now()};
+    const result=await ref.transaction(data=>{
+      // RTDB may invoke this updater against an initial empty local snapshot.
+      // The warmed cache above makes that uncommon; do not abort a valid
+      // pre-existing draft solely because the initial callback saw null.
+      if(data===null)return payload;
+      if((data.rev||0)!==expected)return;
+      return payload;
+    },undefined,false);
+    if(!result.committed){
+      saveBlocked=true;
+      throw Error('雲端草稿已被其他視窗更新，為避免覆蓋已停止儲存。請保留畫面內容。');
+    }
+    const confirmed=result.snapshot.val();
+    if(!confirmed||confirmed.rev!==expected+1){
+      saveBlocked=true;
+      throw Error('草稿寫入後版本核對失敗，請保留畫面並檢查雲端資料。');
+    }
+    oldDraftVersion=confirmed.rev;
+    if(revision===editRevision){dirty=false;$('#draftMessage').textContent='已同步雲端草稿 · '+new Date().toLocaleTimeString('zh-TW');}
+    return items;
+  };
+  const job=saveQueue.then(run);
+  saveQueue=job.catch(()=>{}); // Keep the queue usable so errors can be surfaced to the caller.
+  return job;
+};
+$('#taskRows').addEventListener('input',()=>{editRevision++;dirty=true;$('#draftMessage').textContent='尚未同步…';clearTimeout(draftTimer);draftTimer=setTimeout(()=>save().catch(e=>notify('草稿同步失敗：'+e.message,true)),950)});
 $('#taskRows').addEventListener('keydown',e=>{if(e.key!=='Enter')return;e.preventDefault();const fields=[...document.querySelectorAll('#taskRows input')],idx=fields.indexOf(e.target);if(idx>=0&&idx<fields.length-1){fields[idx+1].focus();fields[idx+1].select();}else $('#saveDraft').focus()});
 mountMobileWizard('taskRows', 'task', false);
 $('#saveDraft').onclick=()=>save().catch(e=>notify(e.message,true));$('#backToTasks').onclick=()=>{if(dirty&&!confirm('仍有尚未同步的內容，確定離開？'))return;clearTimeout(draftTimer);editing=null;tab('list');};$('#submitTask').onclick=async()=>{try{clearTimeout(draftTimer);if(rows.some(r=>String(r.quantity).trim()===''||String(r.expiry).trim()===''))throw Error('每筆數量和效期都必須填寫');const rawItems=gather();if(rawItems.some(r=>String(r.quantity).trim()===''||String(r.expiry).trim()===''))throw Error('每筆數量和效期都必須填寫');const items=rawItems.map(normItem);items.forEach(validItem);await save();if(!confirm('確定送審？送出後將鎖定這一輪的原始結果。'))return;const sub={docId:a.docId,roundId,uid:current.uid,items,submittedAt:now()};await p('submissions/'+roundId).set(sub);await p('statuses/'+current.uid+'/'+roundId).set({state:'submitted',label:'已送審'});notify('已送審，幹部雲端後台可查看。');editing=null;tab('list');}catch(err){notify('送審失敗：'+err.message,true)}};
