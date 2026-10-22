@@ -1,28 +1,17 @@
-VolunteerCare V2.1 - Inventory Draft & Submission Fix
-Date: 2026-10-22
+VolunteerCare V2.2 - PreviewGateFreeze - 2026-10-22
 
-UPLOAD TO GITHUB:
-  inventory-cloud.js ONLY (repository root, replacing previous version)
+原因：主畫面被 unified login gate 隱藏；清點選單轉向 Firebase 模組。
 
-KEEP UNCHANGED:
-  index.html / admin.html / inventory-volunteer.html / inventory-admin.html
-  firebase-config.js / Firebase RTDB rules / existing data
+本更新只替換：index.html / admin.html / unified.js。
+不覆蓋 app.js、inventory-cloud.js、firebase-config.js、database.rules.json。
 
-CHANGES:
-  1) Queue self-count autosaves to prevent late autosaves racing with submit.
-  2) Require cloud submission readback before marking assigned task complete.
-  3) On retry, preserve matching immutable submission and repair missing submitted status.
-  4) Improve stale draft version diagnosis; never silently overwrite newer draft.
-  5) Disable submit button while an attempt is underway.
+更新內容：
+1. 未登入直接顯示原版志工六分頁及幹部選單（本機示範模式）。
+2. 原版登入表單保留並隱藏；只有明確要求使用雲端功能時可自選開啟。
+3. 兩個頁面提供志工／幹部預覽切換。
+4. 沒有 Firebase 身分驗證時，雲端清點顯示說明，不會假冒權限或開放寫入。
+5. 本更新不會修復既有帳號的 invalid-credential；登入功能後續另修。
 
-LIMITATIONS:
-  No live Firebase deployment test was performed. Actual multiple-device
-  draft conflict and mid-write network-failure recovery still require testing.
-  The original admin dispatch logic remains as in V2.0; this patch does not
-  claim to finish V3 abnormal-item filtering or CSV acceptance testing.
-
-TEST (test documents only):
-  - Back up inventory-cloud.js. Upload just replacement and hard-refresh.
-  - V0002 open unfinished V1/V2 test, edit once, wait for cloud sync.
-  - Reopen, verify values persist. Submit and check admin's record.
-  - Do not test against live inventory without backup.
+注意：原版其他分頁有些資料儲存在瀏覽器 localStorage，不會自動從 Firebase 匯入。
+強制重新整理（Ctrl+Shift+R）；如果為 PWA，留意 service worker 舊快取。
+先備份 GitHub 的 3 個同名檔案，再覆蓋。

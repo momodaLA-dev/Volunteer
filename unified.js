@@ -1,90 +1,71 @@
+
 'use strict';
 (()=>{
-  const $=s=>document.querySelector(s);
-  const isAdmin=location.pathname.endsWith('/admin.html');
-  const accounts={A0001:'a0001@gmail.com.tw',V0001:'v0001@gmail.com',V0002:'v0002@gmail.com',V0003:'v0003@gmail.com'};
-  const emailForCode=code=>accounts[code]||(/^V\d{4}$/.test(code)?code.toLowerCase()+'@volunteer-care.example.com':null);
-  const gate=$('#unifiedGate'),main=$('#unifiedMain'),frame=$('#cloudFrame'),panel=$('#cloudPanel'),content=$('#content');
-  const loginForm=$('#unifiedLoginForm'),error=$('#unifiedLoginError'),submit=$('#unifiedSubmit');
-  const fail=s=>{error.textContent=s||'';};
-  let auth,db,verifiedUid=null,authGeneration=0,explicitLogout=false,cloudLoaded=false;
-  function showCloud(){
-    panel.hidden=false;content.hidden=true;
-    if(!cloudLoaded){frame.src='./'+(isAdmin?'inventory-admin.html':'inventory-volunteer.html')+'?embedded=1&v=921';cloudLoaded=true;}
-    window.scrollTo({top:0,behavior:'smooth'});
+ const $=s=>document.querySelector(s);
+ const admin=/\/admin\.html$/.test(location.pathname);
+ const gate=$('#unifiedGate'), main=$('#unifiedMain'), frame=$('#cloudFrame'), panel=$('#cloudPanel'), content=$('#content');
+ const loginForm=$('#unifiedLoginForm'), error=$('#unifiedLoginError'), submit=$('#unifiedSubmit');
+ const identities={A0001:'a0001@gmail.com.tw',V0001:'v0001@gmail.com',V0002:'v0002@gmail.com',V0003:'v0003@gmail.com'};
+ const authEmail=code=>identities[code]||null;
+ let auth=null, db=null, verified=false, firebaseReady=false, busy=false;
+ const setError=message=>{if(error)error.textContent=message||''};
+ // PREVIEW ONLY: all original local/demo tabs are visible without authentication.
+ // Firebase data is NEVER exposed or written without a verified session.
+ function showOriginal(){panel.hidden=true;content.hidden=false;}
+ function showPreview(){gate.hidden=true;main.hidden=false;showOriginal();}
+ function openCloud(){
+  panel.hidden=false;content.hidden=true;
+  if(verified && auth?.currentUser){
+   const target='./'+(admin?'inventory-admin.html':'inventory-volunteer.html')+'?embedded=1&v=20261022-v22';
+   if(frame.getAttribute('src')!==target)frame.src=target;
+   const hint=panel.querySelector('.cloud-hint');if(hint)hint.textContent='目前為已驗證的 Firebase 雲端工作區。';
+  } else {
+   frame.removeAttribute('src'); frame.hidden=true;
+   const hint=panel.querySelector('.cloud-hint');
+   if(hint)hint.textContent='清點雲端資料須先完成 Firebase 身分驗證。登入介面已暫時隱藏，尚未取消權限。可先操作其他選單的本機示範內容。';
+   let actions=panel.querySelector('#previewCloudActions');
+   if(!actions){actions=document.createElement('div');actions.id='previewCloudActions';actions.className='cloud-header';actions.style.marginTop='12px';panel.insertBefore(actions,frame);}
+   actions.textContent='目前為介面預覽模式；無法讀寫正式清點任務。 ';
+   const btn=document.createElement('button');btn.type='button';btn.textContent='需要時開啟原本登入';btn.onclick=()=>{gate.hidden=false;setError('');};actions.appendChild(btn);
   }
-  function showOriginal(){panel.hidden=true;content.hidden=false;}
-  $('#cloudTab').addEventListener('click',showCloud);
-  document.querySelectorAll('nav [data-page]').forEach(b=>b.addEventListener('click',showOriginal));
-  try{
-    const cfg=window.VOLUNTEER_FIREBASE_CONFIG;
-    if(!cfg?.apiKey||!cfg.databaseURL)throw Error('firebase-config.js 尚未設定');
-    if(!window.firebase)throw Error('無法載入 Firebase SDK');
-    if(!firebase.apps.length)firebase.initializeApp(cfg);
-    auth=firebase.auth();db=firebase.database();
-  }catch(e){fail(e.message);return;}
-  // Firebase 將登入資訊保留在瀏覽器，只有主動登出才清除登入。
-  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(e=>{
-    fail('無法保存登入狀態：'+e.message);
-  });
-  loginForm.addEventListener('submit',async e=>{
-    e.preventDefault();const code=$('#unifiedCode').value.trim().toUpperCase(),pin=$('#unifiedPin').value;
-    const email=emailForCode(code);if(!email)return fail('請輸入正確的代號');
-    if((isAdmin&&!code.startsWith('A'))||(!isAdmin&&!code.startsWith('V')))return fail('請使用正確身分的登入入口。');
-    submit.disabled=true;fail('登入驗證中…');
-    try{
-      await auth.signInWithEmailAndPassword(email,pin);
-      $('#unifiedPin').value='';
-    }catch(err){fail('登入失敗：'+(err.message||err.code));}
-    finally{submit.disabled=false;}
-  });
-  $('#unifiedLogout').addEventListener('click',async()=>{
-    explicitLogout=true;
-    try{await auth.signOut();}catch(e){explicitLogout=false;fail('登出失敗：'+e.message);}
-  });
+ }
+ function updateCloud(){
+  const actions=panel.querySelector('#previewCloudActions');if(actions)actions.remove();
+  frame.hidden=false;
+  if(!panel.hidden)openCloud();
+ }
+ showPreview();
+ document.querySelectorAll('nav [data-page]').forEach(b=>b.addEventListener('click',showOriginal));
+ $('#cloudTab')?.addEventListener('click',openCloud);
+ // Existing code/PIN login remains in the repository for later restoration.
+ $('#unifiedLogout')?.addEventListener('click',async()=>{try{await auth?.signOut();showPreview();}catch(e){setError(e.message)}});
+ try {
+  const cfg=window.VOLUNTEER_FIREBASE_CONFIG;
+  if(!cfg?.apiKey||!cfg?.databaseURL||!window.firebase)throw Error('Firebase 尚未正確載入');
+  if(!firebase.apps.length)firebase.initializeApp(cfg);
+  auth=firebase.auth();db=firebase.database();firebaseReady=true;
+  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
   auth.onAuthStateChanged(async user=>{
-    const token=++authGeneration;
-    // 同一帳號的回呼不應重建 iframe、清除草稿或跳回登入畫面。
-    if(user&&verifiedUid===user.uid&&main.hidden===false)return;
-    if(!user){
-      verifiedUid=null;cloudLoaded=false;
-      frame.src='about:blank';panel.hidden=true;
-      gate.hidden=false;main.hidden=true;
-      if(!explicitLogout)fail('登入已失效，請重新登入。');else fail('');
-      explicitLogout=false;
-      return;
-    }
+   verified=false;
+   if(user){
     const code=(user.email||'').split('@')[0].toUpperCase();
-    if(emailForCode(code)!==user.email||((isAdmin&&!code.startsWith('A'))||(!isAdmin&&!code.startsWith('V')))){
-      // 不因開啟錯誤身分的頁面而踢掉另一個頁面的 Firebase Session。
-      verifiedUid=null;gate.hidden=false;main.hidden=true;
-      fail('此帳號不適用於本頁，請使用正確身分的登入入口。若要更換帳號，請先在原登入頁登出。');
-      return;
+    if(authEmail(code)===user.email&&((admin&&code.startsWith('A'))||(!admin&&code.startsWith('V')))){
+     if(!admin)verified=true;
+     else try{verified=(await db.ref('roles/'+user.uid).once('value')).val()==='admin'}catch(e){verified=false;}
+     if(verified)$('#unifiedIdentity').textContent=code;
     }
-    if(isAdmin){
-      try{
-        const role=await db.ref('roles/'+user.uid).once('value');
-        if(token!==authGeneration)return;
-        if(role.val()!=='admin'){
-          verifiedUid=null;gate.hidden=false;main.hidden=true;
-          fail('目前帳號沒有幹部權限，請確認 Firebase roles 設定。');return;
-        }
-      }catch(err){
-        if(token!==authGeneration)return;
-        // 權限確認失敗不強制登出；如果已展示本帳號畫面，保持畫面與草稿。
-        if(verifiedUid===user.uid)return;
-        gate.hidden=false;main.hidden=true;
-        fail('幹部權限確認失敗：'+err.message+'。請檢查網路及資料庫規則。');return;
-      }
-    }
-    if(token!==authGeneration)return;
-    verifiedUid=user.uid;
-    $('#unifiedIdentity').textContent=code;
-    fail('');gate.hidden=true;main.hidden=false;
-    showOriginal();
-  },err=>{
-    // 短暫驗證/網路異常不應清除已開啟的後台。
-    if(verifiedUid) return;
-    fail('登入狀態確認失敗：'+err.message);
+   }
+   showPreview();updateCloud();
   });
+ }catch(e){console.warn('預覽模式：',e.message);}
+ loginForm?.addEventListener('submit',async e=>{
+  e.preventDefault();if(busy)return;
+  const code=$('#unifiedCode').value.trim().toUpperCase(),pin=$('#unifiedPin').value;
+  if(!firebaseReady)return setError('Firebase 無法連線；其他示範分頁仍可查看。');
+  if(!authEmail(code)||((admin&&!code.startsWith('A'))||(!admin&&!code.startsWith('V'))))return setError('請使用這個頁面適用的帳號。');
+  busy=true;submit.disabled=true;setError('驗證中…');
+  try{await auth.signInWithEmailAndPassword(authEmail(code),pin);$('#unifiedPin').value='';gate.hidden=true;setError('');}
+  catch(err){setError('驗證失敗：'+(err.message||err.code));}
+  finally{busy=false;submit.disabled=false;}
+ });
 })();
