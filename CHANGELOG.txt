@@ -1,7 +1,15 @@
-VolunteerCare V1.8 — 2026-10-22
-修正路線 B：V0001 自行在 v9/selfCounts 建立並提交原始 V1，A0001 只能接收後建主單。
-新增路線 A/B 明確選擇，預設 B，避免錯誤取用舊 DIAG 主單。
-若有尚未被幹部接收的 SELF 診斷單則沿用；已完成的測試可重新從小安建立新單。
-登入仍需各瀏覽器首次驗證，後續不需重複登入。
-只需將 v1-v2-diagnostic.html 上傳至 GitHub 專案根目錄。
-不用修改 Firebase 規則或正式清點程式。
+VolunteerCare V1.9 | InventoryRecountIntegration | 2026-10-22
+
+UPDATE: inventory-cloud.js ONLY (copy to repository root).
+
+1. Admin-created V1: individual cloud writes and readback for documents, rounds, assigned, statuses.
+2. Volunteer-self V1 promotion: individual cloud writes and readback for documents, rounds, submissions and linkedDocId.
+3. Recount V2/V3+: individual cloud writes and readback for rounds, assigned, statuses and currentRound.
+4. Detect existing round number on server to prevent repeated dispatch after partial failure.
+5. Preserve existing original app.js, index.html, admin.html, CSS, Firebase config, Auth, drafts, CSV and six-tab volunteer UI.
+
+NOTE: Does not rewrite past partially-created rounds automatically; if a partial round exists, program warns rather than duplicating.
+NOTE: Do not replace the production Firebase rules; V1.6 status=assigned rule remains necessary.
+NOTE: Not yet verified with a live production Firebase account. Test with a DIAG/test document, not real stock.
+
+GitHub upload: inventory-cloud.js only, root folder, Commit Changes. Hard-refresh the inventory page once deployed.
