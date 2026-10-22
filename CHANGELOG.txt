@@ -1,0 +1,17 @@
+VolunteerCare V1.4 | V1/V2 雙起點與半成品修復診斷 | 2026-10-22
+
+只須上傳 v1-v2-diagnostic.html 至 GitHub 專案根目錄，覆蓋同名檔案，Commit。
+網址 https://momodala-dev.github.io/Volunteer/v1-v2-diagnostic.html
+不覆蓋 index.html、admin.html、inventory 程式與 firebase-config.js。
+不更改 Firebase 規則。
+
+路線 A（幹部先發）：A0001「建立／修復 V1」→ V0001「送出 V1」→ A0001「派發 V2」→ V0002「送出 V2」→ A0001「確認」。
+路線 B（志工先發）：V0001「自行送出 V1」→ A0001「接收自行 V1 並建主單」→ A0001「派發 V2」→ V0002「送出 V2」→ A0001「確認」。
+
+重要：路線 B 會寫入 /v9/selfCounts/V0001Uid，並由幹部寫 /v9/documents、/v9/rounds、/v9/submissions。
+診斷資料以 DIAG-V12-/DIAG-SELF- 開頭；不清除任何現有資料。
+如果先前路線 A 有半成品，按「建立／修復 V1」，系統沿用既有主單與 V1 輪次，缺什麼補什麼，不重建、不覆蓋已存資料。
+一旦某個路徑 PERMISSION_DENIED，請複製完整診斷紀錄；不要反覆按建立。
+
+已知限制：如果之前建了多個未完成 DIAG 單，診斷頁會優先採用最近的診斷主單；先完成同一路線再切換。
+本檔案未經使用者線上 Firebase 實測。成功狀態仍依實際紀錄為準。
