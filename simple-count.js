@@ -4,7 +4,7 @@ const $=s=>document.querySelector(s),app=$('#app'),admin=document.body.dataset.k
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const emails={A0001:'a0001@gmail.com.tw',V0001:'v0001@gmail.com',V0002:'v0002@gmail.com'};
 const code=u=>String(u?.email||'').split('@')[0].toUpperCase();
-let auth,db,user=null,form=null,docId=null,lock=false,dirty=false,records={};
+let auth,db,user=null,form=null,docId=null,lock=false,dirty=false,records={},baseUpdatedAt=null;
 const path=(id)=>db.ref('v9/selfCounts/'+user.uid+'/'+id);
 const time=t=>t?new Date(t).toLocaleString('zh-TW',{hour12:false}):'—';
 const status=(s,bad=false)=>{let el=$('#msg');if(el){el.textContent=s;el.className='notice'+(bad?' bad':'');el.hidden=false;}};
@@ -14,7 +14,7 @@ const WAREHOUSES=['008倉','0089倉','0088倉'];
 const blank=()=>({warehouse:'008倉',sku:'',quantity:'',expiry:''});
 const storageKey=()=>`vc-simple-v1-${user.uid}`;
 function defaultForm(){return {donor:'',note:'',items:[blank()]};}
-function localSave(){if(admin||!user||!form)return;try{localStorage.setItem(storageKey(),JSON.stringify({docId,form,savedAt:Date.now()}));}catch(e){status('本機儲存失敗：'+e.message,true)}}
+function localSave(){if(admin||!user||!form)return;try{localStorage.setItem(storageKey(),JSON.stringify({docId,form,savedAt:Date.now(),baseUpdatedAt}));}catch(e){status('本機儲存失敗：'+e.message,true)}}
 function localClear(){try{localStorage.removeItem(storageKey())}catch(e){}}
 function showLogin(note=''){
  user=null;form=null;
@@ -24,7 +24,7 @@ function showLogin(note=''){
 function rowHtml(r,i){return `<div class="line" data-i="${i}"><div><label>倉別</label><select data-f="warehouse">${WAREHOUSES.map(w=>`<option value="${esc(w)}" ${w===(r.warehouse||'008倉')?'selected':''}>${esc(w)}</option>`).join('')}</select></div><div><label>品號（2碼）</label><input data-f="sku" enterkeyhint="next" type="text" inputmode="numeric" pattern="[0-9]{2}" maxlength="2" autocomplete="off" value="${esc(r.sku)}" placeholder="例如 01"></div><div><label>數量</label><input data-f="quantity" enterkeyhint="next" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(r.quantity)}" placeholder="0"></div><div><label>效期（YYYYMM）</label><input data-f="expiry" enterkeyhint="next" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" value="${esc(r.expiry)}" placeholder="202712"></div><button class="danger" data-del="${i}" title="刪除這列" type="button">×</button></div>`}
 function inputView(){
  app.innerHTML=`<div class="card"><div class="top"><div><h2>自行清點單</h2><div class="muted">登入：${esc(code(user))}｜<span id="currentId">${esc(docId||'尚未建立雲端編號')}</span></div></div><button id="logout" class="secondary">登出</button></div><div id="msg" class="notice" hidden></div><label>捐贈者資訊（自由填寫，可留空）</label><input id="donor" maxlength="200" placeholder="例如：捐贈者名稱／單位" value="${esc(form.donor||'')}"><label>清點備註（可選填）</label><textarea id="note" rows="2" maxlength="300">${esc(form.note)}</textarea><h2>清點品項</h2><div class="muted">同品號不同效期請分列；每筆原樣保留，不自動合併；下方另顯示各倉別、品號的加總。數量 0 表示確認現場無存量。</div><div id="rows">${form.items.map(rowHtml).join('')}</div><div id="totals" class="totals"></div><div class="row actionbar"><button id="add" class="secondary">＋ 新增一筆</button><button id="local" class="secondary">儲存本機草稿</button><button id="cloud" class="secondary">同步雲端草稿</button><button id="submit">正式送出給幹部</button></div><p id="saveInfo" class="tiny">變更會暫存在本機。雲端儲存及送審需要網路。</p></div><div class="card"><h2>我的雲端清點紀錄</h2><button id="refresh" class="secondary">重新整理</button><div id="history">讀取中…</div></div>`;
- $('#logout').onclick=()=>auth.signOut();$('#add').onclick=()=>appendRow(true);$('#rows').onclick=e=>{const btn=e.target.closest('[data-del]');if(!btn)return;collect();if(form.items.length<=1)return status('至少保留一列；可清空欄位。',true);form.items.splice(Number(btn.dataset.del),1);localSave();inputView()};
+ $('#logout').onclick=async()=>{collect();localSave();await auth.signOut()};$('#add').onclick=()=>appendRow(true);$('#rows').onclick=e=>{const btn=e.target.closest('[data-del]');if(!btn)return;collect();if(form.items.length<=1)return status('至少保留一列；可清空欄位。',true);form.items.splice(Number(btn.dataset.del),1);dirty=true;localSave();inputView()};
  app.onkeydown=e=>{const field=e.target.closest('[data-f=sku],[data-f=quantity],[data-f=expiry]');if(!field||e.key!=='Enter')return;e.preventDefault();const line=field.closest('.line'),next=field.dataset.f==='sku'?'quantity':field.dataset.f==='quantity'?'expiry':null;if(next){line.querySelector(`[data-f=${next}]`)?.focus({preventScroll:true})}else{const nextLine=line.nextElementSibling;if(nextLine?.classList.contains('line'))nextLine.querySelector('[data-f=sku]')?.focus({preventScroll:true});else $('#add')?.focus({preventScroll:true})}};
  app.oninput=e=>{if(e.target.matches('[data-f=sku],[data-f=quantity],[data-f=expiry]')){const max=e.target.dataset.f==='sku'?2:e.target.dataset.f==='expiry'?6:16;e.target.value=e.target.value.replace(/[^0-9]/g,'').slice(0,max)}if(e.target.closest('#rows')||['donor','note'].includes(e.target.id)){collect();dirty=true;localSave();renderTotals();const s=$('#saveInfo');if(s)s.textContent='資料已保存在本機（未必同步至雲端）'}};
  $('#rows').onchange=e=>{if(e.target.matches('[data-f]')){collect();dirty=true;localSave()}};
@@ -48,16 +48,64 @@ function validated(){
  return result;
 }
 async function withBusy(fn){if(lock)return;lock=true;document.querySelectorAll('button').forEach(b=>b.disabled=true);try{await fn()}catch(e){status('操作未完成：'+e.message,true)}finally{lock=false;document.querySelectorAll('button').forEach(b=>b.disabled=false)}}
-async function cloudSave(final){const items=validated(),id=docId||db.ref('v9/selfCounts/'+user.uid).push().key;if(!docId){docId=id;localSave()}const ref=path(id),existing=(await ref.once('value')).val();if(existing?.state==='submitted')throw Error('本單已送出，不允許覆寫。');const payload={uid:user.uid,title:'自行清點',donor:noEmpty(form.donor),state:final?'submitted':'draft',items,updatedAt:firebase.database.ServerValue.TIMESTAMP,note:noEmpty(form.note),schemaVersion:3};if(final)payload.submittedAt=firebase.database.ServerValue.TIMESTAMP;if(existing?.createdAt)payload.createdAt=existing.createdAt;else payload.createdAt=firebase.database.ServerValue.TIMESTAMP;
- // Fixed doc ID re-used for retries; serialized client-side; rules enforce that submitted records cannot be rewritten.
- await ref.set(payload);const snap=(await ref.once('value')).val();if(!snap||snap.state!==payload.state||JSON.stringify(snap.items)!==JSON.stringify(items)||String(snap.donor||'')!==noEmpty(form.donor)||(final&&!Number.isFinite(snap.submittedAt)))throw Error('回讀核對失敗；請先重新整理查看，避免重複送出。');docId=id;dirty=false;form.items=items.map(r=>({...r,quantity:String(r.quantity)}));localSave();$('#currentId').textContent=id;renderTotals();await history();status(final?'已成功送達 Firebase，幹部端可查看。':'雲端草稿儲存成功，已回讀核對。');return true}
-async function submit(){if(!confirm('確定正式送出？送出後不能覆寫原始清點資料。'))return;const done=await cloudSave(true);if(done){localClear();form=defaultForm();docId=null;inputView();status('已確認送出！請至下方歷史紀錄核對。')}}
-async function history(){const out=$('#history');if(!out)return;try{const data=(await db.ref('v9/selfCounts/'+user.uid).once('value')).val()||{};const entries=Object.entries(data).sort((a,b)=>(b[1].updatedAt||0)-(a[1].updatedAt||0));out.innerHTML=entries.length?entries.map(([id,v])=>`<div class="item"><strong>${esc(v.donor?'捐贈者：'+v.donor:'自行清點')}</strong>｜${v.state==='submitted'?'已送出':'草稿'}<div class="tiny">${esc(id)}｜${time(v.updatedAt)}｜${Array.isArray(v.items)?v.items.length:0} 筆</div>${v.state==='draft'?`<button class="secondary" data-load="${esc(id)}">繼續編輯</button>`:''}</div>`).join(''):'尚無雲端紀錄';out.querySelectorAll('[data-load]').forEach(b=>b.onclick=()=>{if(dirty&&!confirm('目前資料尚有未同步變更，確定改開其他雲端草稿？'))return;const v=data[b.dataset.load];if(!v||v.state!=='draft')return;docId=b.dataset.load;form={donor:v.donor||'',note:v.note||'',items:v.items.map(r=>({...r,quantity:String(r.quantity)}))};dirty=false;localSave();inputView();status('已載入雲端草稿')})}catch(e){out.textContent='無法讀取：'+e.message}}
+// A fixed submission ID is saved locally before the first network write. After a
+// lost acknowledgement, verify the same ID instead of creating another document.
+async function cloudSave(final){
+ const items=validated(),id=docId||db.ref('v9/selfCounts/'+user.uid).push().key;
+ if(!docId){docId=id;localSave()}
+ const ref=path(id),existing=(await ref.once('value')).val();
+ if(existing?.state==='submitted'){
+   if(final&&JSON.stringify(existing.items)===JSON.stringify(items)&&String(existing.donor||'')===noEmpty(form.donor)&&String(existing.note||'')===noEmpty(form.note))return confirmReceipt(id,existing);
+   throw Error('這張清點單已送出。請開啟下方雲端歷史確認，避免再次送出。');
+ }
+ if(existing && baseUpdatedAt!==null && existing.updatedAt!==baseUpdatedAt){
+   throw Error('這份草稿在其他裝置或視窗已更新。本次沒有覆蓋雲端資料，請先核對並重新載入草稿。');
+ }
+ if(existing && baseUpdatedAt===null){
+   throw Error('雲端已有同編號草稿，但未確認版本。請由下方歷史清單重新開啟再儲存。');
+ }
+ const payload={uid:user.uid,title:'自行清點',donor:noEmpty(form.donor),state:final?'submitted':'draft',items,updatedAt:firebase.database.ServerValue.TIMESTAMP,note:noEmpty(form.note),schemaVersion:3};
+ if(final)payload.submittedAt=firebase.database.ServerValue.TIMESTAMP;
+ payload.createdAt=existing?.createdAt||firebase.database.ServerValue.TIMESTAMP;
+ try{await ref.set(payload)}catch(err){
+   // Do not change docId or clear the local draft on ambiguous network failures.
+   let after=null;try{after=(await ref.once('value')).val()}catch(_err){}
+   if(final&&after?.state==='submitted'&&JSON.stringify(after.items)===JSON.stringify(items))return confirmReceipt(id,after);
+   throw Error('尚無法確認雲端是否收到：'+(err.code||err.message)+'。保留此清點單號，請恢復網路後重新檢查。');
+ }
+ const snap=(await ref.once('value')).val();
+ if(!snap||snap.state!==payload.state||JSON.stringify(snap.items)!==JSON.stringify(items)||String(snap.donor||'')!==noEmpty(form.donor)||String(snap.note||'')!==noEmpty(form.note)||(final&&!Number.isFinite(snap.submittedAt))){
+   throw Error('雲端回讀資料與畫面不一致，已保留本機內容和單號，請先核對，勿建立新單。');
+ }
+ baseUpdatedAt=snap.updatedAt||null;dirty=false;
+ form.items=items.map(r=>({...r,quantity:String(r.quantity)}));localSave();
+ $('#currentId').textContent=id;renderTotals();
+ try{await history()}catch(_err){}
+ if(final)return confirmReceipt(id,snap);
+ status('雲端草稿儲存成功，已回讀核對。');return true;
+}
+function confirmReceipt(id,snap){
+ if(!Number.isFinite(snap.submittedAt))throw Error('雲端已提交但送出時間未完成核對，請查看歷史紀錄。');
+ // A positive receipt is necessary before removing the local pending copy.
+ status('已確認送達 Firebase｜單號：'+id+'｜送出：'+time(snap.submittedAt));
+ return true;
+}
+async function submit(){
+ if(!confirm('確定正式送出？送出後不能覆寫原始清點資料。'))return;
+ const receiptId=docId;
+ const done=await cloudSave(true);
+ if(done){
+   const confirmedId=docId||receiptId;
+   localClear();form=defaultForm();docId=null;baseUpdatedAt=null;dirty=false;
+   inputView();status('雲端已確認送出。收件單號：'+confirmedId+'。請至下方歷史核對。');
+ }
+}
+async function history(){const out=$('#history');if(!out)return;try{const data=(await db.ref('v9/selfCounts/'+user.uid).once('value')).val()||{};const entries=Object.entries(data).sort((a,b)=>(b[1].updatedAt||0)-(a[1].updatedAt||0));out.innerHTML=entries.length?entries.map(([id,v])=>`<div class="item"><strong>${esc(v.donor?'捐贈者：'+v.donor:'自行清點')}</strong>｜${v.state==='submitted'?'已送出':'草稿'}<div class="tiny">${esc(id)}｜${time(v.updatedAt)}｜${Array.isArray(v.items)?v.items.length:0} 筆</div>${v.state==='draft'?`<button class="secondary" data-load="${esc(id)}">繼續編輯</button>`:''}</div>`).join(''):'尚無雲端紀錄';out.querySelectorAll('[data-load]').forEach(b=>b.onclick=()=>{if(dirty&&!confirm('目前資料尚有未同步變更，確定改開其他雲端草稿？'))return;const v=data[b.dataset.load];if(!v||v.state!=='draft')return;docId=b.dataset.load;baseUpdatedAt=v.updatedAt||null;form={donor:v.donor||'',note:v.note||'',items:v.items.map(r=>({...r,quantity:String(r.quantity)}))};dirty=false;localSave();inputView();status('已載入雲端草稿')})}catch(e){out.textContent='無法讀取：'+e.message}}
 async function adminView(){const role=(await db.ref('roles/'+user.uid).once('value')).val();if(role!=='admin'){app.innerHTML='<div class="card">此帳號沒有幹部權限。</div>';return}app.innerHTML=`<div class="card"><div class="top"><h2>志工自行清點｜已送出清單</h2><button id="logout" class="secondary">登出</button></div><div id="msg" class="notice" hidden></div><div class="grid"><div><label>依日期、倉別、志工、品號搜尋</label><input id="query" placeholder="輸入關鍵字"></div><div><label>狀態</label><select id="filter"><option value="submitted">已送出</option><option value="all">全部（含草稿，僅限管理查閱）</option></select></div></div><div class="row"><button id="refresh">更新收件匣</button><button id="csv" class="secondary">匯出目前篩選 CSV</button></div><p class="muted">志工送出代表「清點回報」，並不等於庫存已確認。此頁不會自動更新庫存。</p><div id="results">讀取中…</div></div>`;$('#logout').onclick=()=>auth.signOut();$('#refresh').onclick=loadAdmin;$('#query').oninput=renderAdmin;$('#filter').onchange=renderAdmin;$('#csv').onclick=exportCsv;await loadAdmin()}
 async function loadAdmin(){try{records=(await db.ref('v9/selfCounts').once('value')).val()||{};renderAdmin();status('收件匣讀取成功。')}catch(e){status('幹部端讀取失敗：'+e.message,true)}}
 function visible(){let arr=[];for(const [uid,docs] of Object.entries(records))for(const [id,v] of Object.entries(docs&&typeof docs==='object'?docs:{})){if(!v||typeof v!=='object')continue;if($('#filter').value==='submitted'&&v.state!=='submitted')continue;const needle=JSON.stringify([uid,id,v.title,v.donor,v.items,v.note,v.submittedAt,v.updatedAt]).toLowerCase();if(!needle.includes($('#query').value.trim().toLowerCase()))continue;arr.push({uid,id,...v})}return arr.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))}
-function summaryHtml(items){const groups=new Map();for(const r of Array.isArray(items)?items:[]){const n=Number(r.quantity);if(!Number.isSafeInteger(n))continue;const k=JSON.stringify([r.warehouse,r.sku]);const g=groups.get(k)||{warehouse:r.warehouse,sku:r.sku,total:0};g.total+=n;groups.set(k,g)}return `<h4>各倉別／品號合計（逐筆紀錄保留）</h4><table><thead><tr><th>倉別</th><th>品號</th><th>合計數量</th></tr></thead><tbody>${[...groups.values()].map(g=>`<tr><td>${esc(g.warehouse)}</td><td>${esc(g.sku)}</td><td>${g.total}</td></tr>`).join('')}</tbody></table>`}
+function summaryHtml(items){const groups=new Map();for(const r of Array.isArray(items)?items:[]){const n=Number(r.quantity);if(!Number.isSafeInteger(n)||n<0)continue;const k=JSON.stringify([r.warehouse,r.sku]);const g=groups.get(k)||{warehouse:r.warehouse,sku:r.sku,total:0};if(!Number.isSafeInteger(g.total+n))continue;g.total+=n;groups.set(k,g)}return `<h4>各倉別／品號合計（逐筆紀錄保留）</h4><table><thead><tr><th>倉別</th><th>品號</th><th>合計數量</th></tr></thead><tbody>${[...groups.values()].map(g=>`<tr><td>${esc(g.warehouse)}</td><td>${esc(g.sku)}</td><td>${g.total}</td></tr>`).join('')}</tbody></table>`}
 function renderAdmin(){const out=$('#results');if(!out)return;const rows=visible();out.innerHTML=`<p class="muted">符合條件：${rows.length} 張清點單</p>`+(rows.length?rows.map((v,i)=>`<details class="item"><summary><strong>${esc(v.donor?'捐贈者：'+v.donor:'自行清點')}</strong>｜${esc(v.state)}｜${time(v.submittedAt||v.updatedAt)}｜${esc(v.uid.slice(0,8))}…</summary><p class="tiny">單號 ${esc(v.id)}｜UID ${esc(v.uid)}｜送出時間 ${time(v.submittedAt|| (v.state==='submitted'?v.updatedAt:null))}｜捐贈者 ${esc(v.donor||'未填')}｜備註 ${esc(v.note||'')}</p><table><thead><tr><th>倉別</th><th>品號</th><th>數量</th><th>效期</th></tr></thead><tbody>${(Array.isArray(v.items)?v.items:[]).map(r=>`<tr><td>${esc(r.warehouse)}</td><td>${esc(r.sku)}</td><td>${esc(r.quantity)}</td><td>${esc(r.expiry)}</td></tr>`).join('')}</tbody></table>${summaryHtml(v.items)}</details>`).join(''):'<p>尚無符合的清點單</p>')}
-function exportCsv(){const rows=[['清點單號','志工 UID','狀態','捐贈者資訊','送出時間（伺服器）','倉別','品號','數量','效期','備註']];for(const v of visible())for(const r of (Array.isArray(v.items)?v.items:[]))rows.push([v.id,v.uid,v.state,v.donor||'',time(v.submittedAt||(v.state==='submitted'?v.updatedAt:null)),r.warehouse,r.sku,r.quantity,r.expiry,v.note||'']);const safe=x=>{let s=String(x??'');if(/^[\s]*[=+\-@]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'};const csv='\ufeff'+rows.map(r=>r.map(safe).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='VolunteerCare_SelfCount_'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),3000)}
-try{const config=window.VOLUNTEER_FIREBASE_CONFIG;if(!config?.apiKey||!config?.databaseURL)throw Error('找不到 firebase-config.js');if(!firebase.apps.length)firebase.initializeApp(config);auth=firebase.auth();db=firebase.database();let seq=0;auth.onAuthStateChanged(async u=>{const current=++seq;if(!u){showLogin();return}if(admin?code(u)!=='A0001':!/^V\d{4}$/.test(code(u))){showLogin('目前登入的帳號不適用此頁，請先登出原帳號再登入。');return}user=u;if(admin){await adminView();return}try{let saved;try{saved=JSON.parse(localStorage.getItem(storageKey())||'null')}catch(e){}docId=saved?.docId||null;form=saved?.form?.items?.length?saved.form:defaultForm();if(docId){const online=(await path(docId).once('value')).val();if(current!==seq)return;if(online?.state==='submitted'){docId=null;form=defaultForm();localClear()}}inputView()}catch(e){app.innerHTML='<div class="card">無法開啟：'+esc(e.message)+'</div>'}})}catch(e){app.innerHTML='<div class="card">無法啟動：'+esc(e.message)+'</div>'}
+function exportCsv(){const rows=[['清點單號','志工 UID','狀態','捐贈者資訊','送出時間（伺服器）','倉別','品號','數量','效期','備註']];for(const v of visible())for(const r of (Array.isArray(v.items)?v.items:[]))rows.push([v.id,v.uid,v.state,v.donor||'',time(v.submittedAt||(v.state==='submitted'?v.updatedAt:null)),r.warehouse,r.sku,r.quantity,r.expiry,v.note||'']);const safe=x=>{let s=String(x??'').replace(/[\u0000-\u001F\u007F]/g,' ');if(/^[\s\uFEFF]*[=+\-@]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'};const csv='\ufeff'+rows.map(r=>r.map(safe).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='VolunteerCare_SelfCount_'+new Date().toISOString().slice(0,10)+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),3000)}
+try{const config=window.VOLUNTEER_FIREBASE_CONFIG;if(!config?.apiKey||!config?.databaseURL)throw Error('找不到 firebase-config.js');if(!firebase.apps.length)firebase.initializeApp(config);auth=firebase.auth();db=firebase.database();let seq=0;auth.onAuthStateChanged(async u=>{const current=++seq;if(!u){user=null;docId=null;baseUpdatedAt=null;showLogin();return}if(admin?code(u)!=='A0001':!/^V\d{4}$/.test(code(u))){showLogin('目前登入的帳號不適用此頁，請先登出原帳號再登入。');return}user=u;if(admin){await adminView();return}try{let saved;try{saved=JSON.parse(localStorage.getItem(storageKey())||'null')}catch(e){}docId=saved?.docId||null;baseUpdatedAt=saved?.baseUpdatedAt??null;form=saved?.form?.items?.length?saved.form:defaultForm();if(docId){const online=(await path(docId).once('value')).val();if(current!==seq)return;if(online?.state==='submitted'){docId=null;baseUpdatedAt=null;form=defaultForm();localClear()}else if(online?.state==='draft'){if((baseUpdatedAt===null || online.updatedAt!==baseUpdatedAt) && !(saved?.savedAt && saved.savedAt > (online.updatedAt||0))){form={donor:online.donor||'',note:online.note||'',items:Array.isArray(online.items)?online.items.map(r=>({...r,quantity:String(r.quantity)})):[blank()]};baseUpdatedAt=online.updatedAt||null;localSave()}}}inputView();if(saved?.savedAt && baseUpdatedAt!==null && saved.savedAt > baseUpdatedAt)status('偵測到本機可能有尚未同步的變更。儲存雲端前會再次核對版本。',true)}catch(e){app.innerHTML='<div class="card">無法開啟：'+esc(e.message)+'</div>'}})}catch(e){app.innerHTML='<div class="card">無法啟動：'+esc(e.message)+'</div>'}
 })();
