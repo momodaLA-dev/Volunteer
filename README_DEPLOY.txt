@@ -1,13 +1,3 @@
-VolunteerCare V3.3 Mobile Numeric Warehouse Form | 2026-10-28
-
-請將四個同名檔案上傳到 GitHub Pages 專案根目錄：
-1. simple-count-volunteer.html
-2. simple-count-admin.html
-3. simple-count.js
-4. simple-count.css
-
-本版新增 0088倉，品號只能兩碼數字（保留 01 的前置零），數量使用手機數字鍵盤，效期 YYYYMM 6 碼；相同倉別＋品號＋效期的列，儲存或送出時合併加總。
-捐贈者自由填寫、清點備註保留，無手動清點時間及範圍，正式送出使用 Firebase 伺服器時間。
-如志工已開啟舊頁，更新後請完整重新整理；未同步本機草稿先確認保存。
-注意：舊已送出紀錄不會重新合併；本版使用既有 v9/selfCounts 規則，線上仍需志工、幹部實測。
-請勿上傳此 TXT、不要覆蓋 firebase-config.js 或 Firebase 規則。
+VolunteerCare V3.4 逐筆保留＋倉別品號即時小計＋手機下一格操作。上傳四檔：simple-count-volunteer.html、simple-count-admin.html、simple-count.js、simple-count.css。請先備份舊檔。不用上傳此 TXT。
+每一列獨立保留，相同倉別/品號/效期不合併。頁面下方按倉別＋品號合計（不同效期仍相加，只作摘要）。手機數字欄位可按鍵盤下一步，品號→數量→效期→下一筆品號；末筆效期按下一步，焦點到「新增一筆」。不自動跳畫面、不每次重新建立整個頁面。雲端規則未更改。
+注意：手機鍵盤由 iOS/Android 自行決定是否顯示下一步鍵；有些系統使用完成鍵，仍可手動點欄位。已送出舊版資料若原本已合併，無法由新版還原原先逐列。
