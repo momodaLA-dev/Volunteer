@@ -1,32 +1,27 @@
-VolunteerCare Phase 1: per-document Firebase ID (2026-10-28)
+VolunteerCare Phase 1 — 同張草稿防覆寫 CAS 修正｜2026-10-28
 
-Upload only these 4 files to the GitHub Pages project root:
-- simple-count.js
-- simple-count-volunteer.html
-- simple-count-admin.html
-- simple-count.css
-README_DEPLOY.txt is for reference only.
+只需上傳 simple-count.js，覆蓋 GitHub Pages 根目錄的同名檔案。
+其他 HTML、CSS、登入、Firebase 設定檔及現行線上 Rules 一律不動。
 
-Changes:
-1. New button '+ 新增清點單（全新雲端編號）' immediately creates a unique push-key draft in v9/selfCounts/{auth.uid}/{docId} using a create-only Firebase transaction.
-2. New document is opened only after cloud write and verification succeed.
-3. Dirty local modifications block creating another document until saved to the cloud.
-4. Existing '＋新增一筆' continues to add a row to the current document.
-5. Multiple phones creating separate documents get distinct IDs; two phones editing the SAME existing document still require separate conflict-control work.
-6. Existing selfCounts and V1/V2 records are not modified or migrated.
+主要變動：
+1. 雲端草稿新增 rev 版本欄位；舊草稿無 rev 視為 0，可相容。
+2. 使用 Firebase Realtime Database transaction 原子比對 rev、updatedAt、狀態及本人 UID；衝突時中止交易，保留本機草稿。
+3. 正式送出也走相同交易；已送出紀錄不可被新版覆寫。
+4. 網頁重開後若本機 dirty，保持本機輸入，不以雲端日期自動覆蓋；若其他裝置已提交，保留本機內容並提示。
+5. 新清點單仍使用 Firebase push() 的獨立 ID；逐筆清點、手機輸入、幹部收件不變。
 
-Important:
-- Firebase Auth is required.
-- No Firebase rules are included or deployed. Rules currently in the repo support the draft data shape; actual live rules must be validated.
-- GitHub Pages hosts static files only. This package does not modify live Firebase data until operated by signed-in users.
-- Backup the prior four files before replacing.
+部署前：備份舊 simple-count.js 與 Firebase 現行資料和 Rules。
+注意：程式語法檢查不代表雲端權限已實測成功。若 Firebase Rules 限制新欄位 rev 或交易所需權限，會收到寫入錯誤；不要直接覆蓋線上 Rules，應依實際錯誤再檢查。
 
-Smoke test:
-A. Phone 1: log in V0001, click NEW DOCUMENT; note ID A.
-B. Phone 2: same account, click NEW DOCUMENT; note ID B; ensure A != B.
-C. Enter and sync different item rows from both devices; refresh history to see both draft cards.
-D. Submit document A, verify admin inbox shows A; B remains a draft.
-E. While unsaved edits exist, NEW DOCUMENT must be blocked.
-F. Verify each row stays separate and totals are calculated only for display.
+驗收：
+A. 同帳號手機 A、B 開啟同一張草稿。
+B. A 儲存品號 08、數量 111；B 留在舊畫面輸入 222 再儲存。
+C. 預期 A 儲存成功、B 顯示版本衝突、B 的本機輸入仍保留；雲端仍為 A 的 111。
+D. B 重新整理前，先自行備份 222；以歷史清單開啟最新雲端草稿後，決定人工整合資料再送審。
+E. 使用獨立清點單 ID，手機 A、B 各自建立新單，雙方可正常儲存。
+F. 送出後從幹部收件匣核對品號、效期、數量與 CSV。
 
-No production Firebase tests were run by this package author. Verify under a trial account before wider rollout.
+重要限制：
+* 尚未增加自動合併衝突資料；發生衝突時由志工自行核對。
+* 尚未實測實際 Firebase 兩手機及權限規則；此次為穩定化候選版。
+* 本機草稿是 localStorage，清除瀏覽器資料可能無法復原；衝突時請先備份文字或截圖。
