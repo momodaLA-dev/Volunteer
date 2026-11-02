@@ -29,3 +29,6 @@
 .mc-field-feedback:empty{display:none}
 .mc-field-feedback.mc-expired-text{color:#b32626}
 @media(max-width:650px){.mc-row-heading{grid-column:1/-1}.mc-field-feedback{font-size:12px}}
+
+/* MC1.8 admin review and comparison */
+.mc-compare-pick{display:inline-flex;align-items:center;gap:8px;margin:0;font-size:14px;cursor:pointer}.mc-compare-pick input{width:18px;height:18px}.mc-compare-result{margin:12px 0}.mc-diff td{background:#fff0ed;color:#8f302a;font-weight:600}.mc-compare-result th .muted{max-width:180px;white-space:normal;overflow-wrap:anywhere}.mc-compare-result table{min-width:560px}
