@@ -1,3 +1,17 @@
 :root{font-family:system-ui,'Microsoft JhengHei',sans-serif;color:#243d37;background:#f4f8f6}*{box-sizing:border-box}body{margin:0}.wrap{max-width:1020px;margin:auto;padding:12px}header{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.card{background:#fff;border:1px solid #dbe6e1;border-radius:14px;padding:16px;margin:12px 0}h1{font-size:24px}h2{font-size:19px}label{display:block;font-weight:600;font-size:14px;margin:10px 0 4px}input,select,textarea{width:100%;border:1px solid #adcbc0;border-radius:8px;padding:11px;font-size:16px;background:white}button,.link{display:inline-block;background:#16766a;color:white;border:0;border-radius:9px;padding:11px 14px;font:inherit;text-decoration:none;cursor:pointer}button:disabled{opacity:.45}.light{background:#e8f2ee;color:#225247}.warn{background:#fff2e4;color:#7c4112}.danger{background:#a03b40}.line{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end;border-bottom:1px solid #e4eae7;padding:8px 0}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.muted{color:#60766d;font-size:13px}.notice{padding:10px;background:#e7f4ee;border-radius:8px;margin:10px 0;white-space:pre-wrap}.notice.bad{background:#fff0e7;color:#8a3024}.item{border:1px solid #e0eae5;padding:12px;border-radius:9px;margin:10px 0}table{border-collapse:collapse;width:100%}td,th{padding:9px;text-align:left;border-bottom:1px solid #dce6e0}th{background:#f5faf7}.scroll{overflow-x:auto}summary{cursor:pointer;font-weight:600}.tag{color:#286353;font-size:12px}.hidden{display:none!important}@media(max-width:650px){.line{grid-template-columns:1fr 1fr}.line button{grid-column:2}.actions button{flex:1 1 130px}.wrap{padding:9px}}@media print{button,.link{display:none}}
 
 .readonly-field{border:1px solid #dce8e2;background:#f3f8f5;border-radius:8px;padding:12px;min-height:46px;overflow-wrap:anywhere}.next-btn{display:block;width:100%;margin-top:7px;padding:10px;font-size:15px}.line>div{min-width:0}.line input{min-width:0}.line button[data-remove]{align-self:end}@media(max-width:650px){.line{grid-template-columns:1fr 1fr}.line>div{min-width:0}.next-btn{min-height:42px}html{scroll-padding-bottom:90px}}
+
+/* MC1.3 optional fixed numeric entry surface on touch phones */
+.mc-fixed-pad[hidden]{display:none!important}
+@media(max-width:650px) and (pointer:coarse){
+ body.mc-keypad-open{padding-bottom:355px}
+ .mc-fixed-pad{position:fixed;z-index:9999;left:0;right:0;bottom:0;background:#eef4f2;border-top:1px solid #c3d5ce;padding:8px 12px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -8px 28px #1c463325}
+ .mc-pad-head{display:flex;align-items:center;justify-content:space-between;min-height:36px;margin-bottom:6px}
+ .mc-pad-close{background:#d9e7e1;color:#21483d;padding:7px 15px}
+ .mc-pad-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+ .mc-pad-grid button{height:49px;background:white;color:#173a30;font-size:24px;font-weight:600;border:1px solid #d3e2dc;padding:0}
+ .mc-pad-grid .mc-pad-next{font-size:16px;background:#16766a;color:#fff}
+ .mc-pad-grid .mc-pad-del{font-size:23px;background:#dce9e4}
+ #rows input[data-k="sku"],#rows input[data-k="quantity"],#rows input[data-k="expiry"]{caret-color:transparent}
+}

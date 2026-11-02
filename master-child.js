@@ -50,7 +50,7 @@ async function performSubmit(){await loadMasters();const rows=validate();await p
  draft.status='submitted';draft.serverId=childId;await persist();note('雲端已確認收到子單：'+received.displayNo+'（待幹部審核）');renderVolunteer();
 }
 async function withBusy(fn){if(busy)return;busy=true;document.querySelectorAll('button').forEach(x=>x.disabled=true);try{await fn()}catch(e){note('操作未完成：'+errtxt(e),true)}finally{busy=false;document.querySelectorAll('button').forEach(x=>x.disabled=false)}}
-async function renderVolunteer(){await loadMasters();const list=await allDrafts();const local=list.filter(x=>x.status==='local').sort((a,b)=>b.updatedLocal-a.updatedLocal);if(draft?.status==='submitted')draft=null;
+async function renderVolunteer(){mcHidePad();await loadMasters();const list=await allDrafts();const local=list.filter(x=>x.status==='local').sort((a,b)=>b.updatedLocal-a.updatedLocal);if(draft?.status==='submitted')draft=null;
  app.innerHTML=`<section class="card"><div class="actions"><strong>登入：${esc(code())}</strong><button class="light" id="logout">登出</button></div><div id="notice" class="notice" hidden></div><p class="muted">草稿僅在本手機（IndexedDB）。只有按「正式送出」才寫入 Firebase。</p><label>選擇幹部開放中的母單</label><select id="choose"><option value="">請選擇母單</option>${masterOptions(draft?.masterId)}</select><div class="actions"><button id="newDraft" class="light">＋建立本機子單</button><button id="reload" class="light">重新讀取母單</button></div></section><section class="card"><h2>本機未送出子單</h2><div id="localList">${local.length?local.map(x=>`<div class="item">${esc(masters[x.masterId]?.displayNo||'母單已不可用')}｜${clock(x.updatedLocal)}｜${x.items.length} 筆 <button class="light" data-open="${esc(x.key)}">開啟</button></div>`).join(''):'目前沒有本機草稿'}</div></section>${draft?`<section class="card"><h2>清點品項（本機）</h2><div class="muted">母單：${esc(masters[draft.masterId]?.displayNo||draft.masterId)}｜本機草稿：${esc(draft.clientId.slice(0,8))}</div><label>捐贈者／母單名稱（由幹部設定）</label><div class="readonly-field">${esc(masters[draft.masterId]?.donor||masters[draft.masterId]?.title||'未設定')}</div><label>清點備註（選填）</label><textarea id="memo">${esc(draft.note)}</textarea><div id="rows">${draft.items.map(itemRow).join('')}</div><h3>倉別／品號加總（明細不合併）</h3><div id="sum">${totals(draft.items)}</div><div class="actions"><button id="add" class="light">＋新增一筆</button><button id="save" class="light">儲存本機草稿</button><button id="send">正式送出子單</button></div></section>`:''}`;
  $('#logout').onclick=()=>auth.signOut();$('#reload').onclick=()=>withBusy(renderVolunteer);$('#newDraft').onclick=()=>withBusy(async()=>{const target=$('#choose').value;if(draft){await saveLocal()}await startDraft(target)});document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>withBusy(async()=>{if(draft)await saveLocal();draft=await store('readonly',b.dataset.open);await renderVolunteer()}));
  if(!draft)return;$('#choose').value=draft.masterId;$('#choose').disabled=true;async function appendRow(){capture();draft.items.push(blank());await persist();const rows=$('#rows');rows.insertAdjacentHTML('beforeend',itemRow(draft.items.at(-1),draft.items.length-1));return rows.lastElementChild.querySelector('[data-k=sku]')}
@@ -60,6 +60,50 @@ async function renderVolunteer(){await loadMasters();const list=await allDrafts(
  async function stepNext(input){const line=input.closest('.line');const field=input.dataset.k;if(field==='sku'||field==='quantity'){const next=line.querySelector(`[data-k=${field==='sku'?'quantity':'expiry'}]`);next?.focus({preventScroll:true});return}if(field==='expiry'){const sku=line.querySelector('[data-k=sku]')?.value||'',qty=line.querySelector('[data-k=quantity]')?.value||'',expiry=line.querySelector('[data-k=expiry]')?.value||'';if(!/^\d{2}$/.test(sku)||!/^\d+$/.test(qty)||!Number.isSafeInteger(Number(qty))||Number(qty)>100000000||!/^20\d{2}(0[1-9]|1[0-2])$/.test(expiry)){note('這筆清點尚未完整：請確認品號 2 碼、數量及效期 YYYYMM。',true);return}const existing=line.nextElementSibling?.querySelector('[data-k=sku]');if(existing){existing.focus({preventScroll:true});return}const next=await appendRow();next.focus({preventScroll:true})}}
  app.onkeydown=e=>{if(e.key!=='Enter'||!e.target.matches('[data-k]'))return;e.preventDefault();stepNext(e.target).catch(ex=>note('切換下一格失敗：'+errtxt(ex),true))};
  app.onclick=e=>{const b=e.target.closest('[data-next]');if(!b||!draft)return;const input=b.closest('.line')?.querySelector(`[data-k=${b.dataset.next}]`);if(input)stepNext(input).catch(ex=>note('切換下一格失敗：'+errtxt(ex),true))};
+}
+// Mobile-only, in-page keypad. Native iOS numeric keyboard cannot be customized.
+// Keeping the keypad fixed avoids opening the OS keyboard and keeps Next in thumb reach.
+let mcPadInput=null;
+const mcTouchPad=()=>!isAdmin&&window.matchMedia('(max-width: 650px) and (pointer: coarse)').matches;
+function mcPad(){let el=document.getElementById('mc-fixed-pad');if(el)return el;
+ el=document.createElement('section');el.id='mc-fixed-pad';el.className='mc-fixed-pad';el.hidden=true;
+ el.setAttribute('aria-label','清點數字輸入鍵盤');
+ el.innerHTML='<div class="mc-pad-head"><strong id="mc-pad-caption">品號</strong><button type="button" data-pad="hide" class="mc-pad-close">收起</button></div><div class="mc-pad-grid">'+['1','2','3','4','5','6','7','8','9','del','0','next'].map(k=>'<button type="button" data-pad="'+k+'" class="'+(k==='next'?'mc-pad-next':k==='del'?'mc-pad-del':'')+'">'+(k==='del'?'⌫':k==='next'?'下一格 →':k)+'</button>').join('')+'</div>';
+ document.body.appendChild(el);
+ el.addEventListener('pointerdown',e=>{if(e.target.closest('button'))e.preventDefault()});
+ el.addEventListener('click',async e=>{const b=e.target.closest('[data-pad]');if(!b)return;const k=b.dataset.pad;if(k==='hide'){mcHidePad();return}let inp=mcPadInput;if(!inp?.isConnected){mcHidePad();return}if(k==='next'){
+  const line=inp.closest('.line');let next=null;
+  if(inp.dataset.k==='sku')next=line.querySelector('[data-k="quantity"]');
+  else if(inp.dataset.k==='quantity')next=line.querySelector('[data-k="expiry"]');
+  else if(inp.dataset.k==='expiry'){
+   const sku=line.querySelector('[data-k="sku"]').value,qty=line.querySelector('[data-k="quantity"]').value,expiry=inp.value;
+   if(!/^\d{2}$/.test(sku)||!/^\d+$/.test(qty)||Number(qty)>100000000||!/^20\d{2}(0[1-9]|1[0-2])$/.test(expiry)){note('請完成品號兩碼、數量及六碼有效效期。',true);return}
+   const following=line.nextElementSibling?.querySelector('[data-k="sku"]');
+   if(following)next=following;
+   else { const add=document.getElementById('add'); if(add){add.click();await new Promise(resolve=>setTimeout(resolve,50));next=document.querySelector('#rows .line:last-child [data-k="sku"]')} }
+  }
+  if(next){mcSetPadInput(next);next.focus({preventScroll:true})}return;
+ }
+ const max=inp.dataset.k==='sku'?2:inp.dataset.k==='expiry'?6:9;
+ inp.value=k==='del'?inp.value.slice(0,-1):(inp.value.length<max?inp.value+k:inp.value);
+ inp.dispatchEvent(new Event('input',{bubbles:true}));mcUpdatePad();
+ });return el;
+}
+function mcHidePad(){const pad=document.getElementById('mc-fixed-pad');if(pad)pad.hidden=true;document.body.classList.remove('mc-keypad-open');mcPadInput=null}
+function mcUpdatePad(){const p=mcPad();if(!mcPadInput)return;
+ const names={sku:'品號（2 碼）',quantity:'數量',expiry:'效期（YYYYMM）'};
+ p.querySelector('#mc-pad-caption').textContent=names[mcPadInput.dataset.k]||'數字';
+ p.querySelector('[data-pad="next"]').textContent=mcPadInput.dataset.k==='expiry'?'✓ 新增下一筆':'下一格 →';
+}
+function mcSetPadInput(input){if(!mcTouchPad()||!input?.matches('#rows [data-k="sku"],#rows [data-k="quantity"],#rows [data-k="expiry"]'))return;
+ mcPadInput=input;input.readOnly=true;mcPad().hidden=false;document.body.classList.add('mc-keypad-open');mcUpdatePad();
+}
+if(!isAdmin){
+ document.addEventListener('pointerdown',e=>{const input=e.target.closest('#rows input[data-k]');if(input&&mcTouchPad()){
+  input.readOnly=true;mcSetPadInput(input);
+ }},true);
+ document.addEventListener('focusin',e=>{if(e.target.matches?.('#rows input[data-k]')&&mcTouchPad())mcSetPadInput(e.target)});
+ document.addEventListener('click',e=>{if(e.target.closest('#logout,#send,#save,#newDraft,[data-open]'))mcHidePad()},true);
 }
 async function adminData(){await loadMasters();children=(await db.ref(root+'/childOrders').once('value')).val()||{};approvals=(await db.ref(root+'/approvals').once('value')).val()||{}}
 function reviewButton(masterId,childId){return `<button data-approve="${esc(masterId+'|'+childId)}">核准計入</button><button class="light" data-reject="${esc(masterId+'|'+childId)}">不計入</button>`}
