@@ -25,11 +25,41 @@ function masterLabel(mid){const m=masters[mid];return m?(m.title||m.displayNo)+'
 function childLabel(mid,record){return masterLabel(mid)+'｜子單 '+(record?.clientId?(''+record.clientId).slice(0,8).toUpperCase():record?.displayNo||'未編號')}
 function normalizedItems(x){const a=Array.isArray(x)?x:Object.values(x||{});return a.map(r=>({warehouse:String(r.warehouse||''),sku:String(r.sku||''),quantity:Number(r.quantity),expiry:String(r.expiry||'')}))}
 
-function itemRow(r,i){return `<div class="line" data-i="${i}"><div><label>倉別</label><select data-k="warehouse">${warehouses.map(w=>`<option ${r.warehouse===w?'selected':''}>${w}</option>`).join('')}</select></div><div><label>品號（2碼）</label><input data-k="sku" type="text" pattern="[0-9]*" inputmode="numeric" enterkeyhint="next" maxlength="2" value="${esc(r.sku)}" placeholder="08"></div><div><label>數量</label><input data-k="quantity" type="text" pattern="[0-9]*" inputmode="numeric" enterkeyhint="next" value="${esc(r.quantity)}" placeholder="111"></div><div><label>效期 YYYYMM</label><input data-k="expiry" type="text" pattern="[0-9]*" inputmode="numeric" enterkeyhint="done" maxlength="6" value="${esc(r.expiry)}" placeholder="202701"></div><button type="button" class="light" data-remove="${i}">刪除</button></div>`}
+// Visual guidance is intentionally separate from the Firebase submission contract.
+function mcFieldIssue(field,value,final=false){
+ const v=String(value||'');
+ if(!v)return final?'必填，請輸入資料':'';
+ if(field==='sku')return /^\d{2}$/.test(v)?'':(v.length<2&&!final?'':'品號必須是 2 碼數字');
+ if(field==='quantity')return /^\d+$/.test(v)&&Number.isSafeInteger(Number(v))&&Number(v)<=100000000?'':'數量請輸入 0～100000000 的整數';
+ if(field==='expiry'){
+  if(v.length<6&&!final)return '';
+  if(!/^20\d{2}(0[1-9]|1[0-2])$/.test(v))return '效期必須為 6 碼 YYYYMM，例如 202701';
+  const now=new Date();const current=(now.getFullYear()*100+now.getMonth()+1);
+  if(Number(v)<current)return '效期已過期，請核對（仍可送出並交由幹部確認）';
+ }
+ return '';
+}
+function mcMarkField(input,final=false){
+ if(!input?.matches?.('#rows input[data-k]'))return;
+ const issue=mcFieldIssue(input.dataset.k,input.value,final);
+ const expired=input.dataset.k==='expiry'&&issue.startsWith('效期已過期');
+ const parent=input.parentElement;
+ input.classList.toggle('mc-invalid',Boolean(issue));
+ input.classList.toggle('mc-expired',expired);
+ input.classList.toggle('mc-active',input===mcPadInput||document.activeElement===input);
+ input.setAttribute('aria-invalid',issue&&!expired?'true':'false');
+ let msg=parent.querySelector('.mc-field-feedback');
+ if(!msg){msg=document.createElement('div');msg.className='mc-field-feedback';msg.setAttribute('role','status');parent.appendChild(msg)}
+ msg.textContent=issue;
+ msg.classList.toggle('mc-expired-text',expired);
+}
+function mcRefreshMarks(final=false){document.querySelectorAll('#rows input[data-k]').forEach(x=>mcMarkField(x,final))}
+function mcActiveMark(input){document.querySelectorAll('#rows input[data-k]').forEach(x=>x.classList.toggle('mc-active',x===input));document.querySelectorAll('#rows .line').forEach(x=>x.classList.toggle('mc-current-line',x===input?.closest('.line')))}
+function itemRow(r,i){return `<div class="line" data-i="${i}"><div class="mc-row-heading">第 ${i+1} 筆清點</div><div><label>倉別</label><select data-k="warehouse">${warehouses.map(w=>`<option ${r.warehouse===w?'selected':''}>${w}</option>`).join('')}</select></div><div><label>品號（2碼）</label><input data-k="sku" type="text" pattern="[0-9]*" inputmode="numeric" enterkeyhint="next" maxlength="2" value="${esc(r.sku)}" placeholder="08"></div><div><label>數量</label><input data-k="quantity" type="text" pattern="[0-9]*" inputmode="numeric" enterkeyhint="next" value="${esc(r.quantity)}" placeholder="111"></div><div><label>效期 YYYYMM</label><input data-k="expiry" type="text" pattern="[0-9]*" inputmode="numeric" enterkeyhint="done" maxlength="6" value="${esc(r.expiry)}" placeholder="202701"></div><button type="button" class="light" data-remove="${i}">刪除</button></div>`}
 function totals(items){const groups=new Map();for(const r of items){if(!/^\d{2}$/.test(r.sku)||!/^\d+$/.test(String(r.quantity)))continue;const n=Number(r.quantity);if(!Number.isSafeInteger(n)||n<0)continue;const key=r.warehouse+'|'+r.sku,cur=groups.get(key)||{w:r.warehouse,s:r.sku,n:0,total:0};if(!Number.isSafeInteger(cur.total+n))continue;cur.n++;cur.total+=n;groups.set(key,cur)}return `<div class="scroll"><table><thead><tr><th>倉別</th><th>品號</th><th>筆數</th><th>合計</th></tr></thead><tbody>${[...groups.values()].map(x=>`<tr><td>${esc(x.w)}</td><td>${esc(x.s)}</td><td>${x.n}</td><td>${x.total}</td></tr>`).join('')}</tbody></table></div>`}
 function capture(){if(!draft)return;draft.items=[...document.querySelectorAll('.line')].map(el=>Object.fromEntries([...el.querySelectorAll('[data-k]')].map(f=>[f.dataset.k,f.value])));draft.donor=(masters[draft.masterId]?.donor||masters[draft.masterId]?.title||'');draft.note=$('#memo')?.value||''}
 async function saveLocal(){capture();await persist();note('已儲存於此手機（未上傳雲端）。')}
-function validate(){capture();if(!draft.masterId||masters[draft.masterId]?.status!=='open')throw Error('母單已關閉，不能送出');if(draft.items.length<1||draft.items.length>300)throw Error('品項數須為 1 至 300 筆');const rows=draft.items.map((r,i)=>{if(!warehouses.includes(r.warehouse)||!/^\d{2}$/.test(r.sku)||!/^\d+$/.test(r.quantity)||!Number.isSafeInteger(Number(r.quantity))||Number(r.quantity)>100000000||!/^20\d{2}(0[1-9]|1[0-2])$/.test(r.expiry))throw Error(`第 ${i+1} 筆格式錯誤，請確認倉別、2碼品號、非負整數數量、6碼效期`);return {warehouse:r.warehouse,sku:r.sku,quantity:Number(r.quantity),expiry:r.expiry}});if(draft.donor.length>200||draft.note.length>300)throw Error('捐贈者或備註字數超出限制');return rows}
+function validate(){mcRefreshMarks(true);capture();if(!draft.masterId||masters[draft.masterId]?.status!=='open')throw Error('母單已關閉，不能送出');if(draft.items.length<1||draft.items.length>300)throw Error('品項數須為 1 至 300 筆');const rows=draft.items.map((r,i)=>{if(!warehouses.includes(r.warehouse)||!/^\d{2}$/.test(r.sku)||!/^\d+$/.test(r.quantity)||!Number.isSafeInteger(Number(r.quantity))||Number(r.quantity)>100000000||!/^20\d{2}(0[1-9]|1[0-2])$/.test(r.expiry))throw Error(`第 ${i+1} 筆格式錯誤，請確認倉別、2碼品號、非負整數數量、6碼效期`);return {warehouse:r.warehouse,sku:r.sku,quantity:Number(r.quantity),expiry:r.expiry}});if(draft.donor.length>200||draft.note.length>300)throw Error('捐贈者或備註字數超出限制');return rows}
 async function performSubmit(){await loadMasters();const rows=validate();await persist();if(!confirm('確認正式送出？送出後原始資料不可修改。'))return;
  // Deterministic server key per local draft: retry always addresses the same immutable child.
  const childId=draft.clientId;const clientId=childId;const ref=db.ref(`${root}/childOrders/${draft.masterId}/${childId}`);
@@ -58,11 +88,11 @@ async function withBusy(fn){if(busy)return;busy=true;document.querySelectorAll('
 async function renderVolunteer(){mcHidePad();await loadMasters();const list=await allDrafts();const local=list.filter(x=>x.status==='local').sort((a,b)=>b.updatedLocal-a.updatedLocal);if(draft?.status==='submitted')draft=null;
  app.innerHTML=`<section class="card"><div class="actions"><strong>登入：${esc(code())}</strong><button class="light" id="logout">登出</button></div><div id="notice" class="notice" hidden></div><p class="muted">草稿僅在本手機（IndexedDB）。只有按「正式送出」才寫入 Firebase。</p><label>選擇幹部開放中的母單（新增子單時使用）</label><select id="choose"><option value="">請選擇母單</option>${masterOptions(draft?.masterId)}</select><p class="muted">要改選其他母單，請先從上方選單選擇，再按「＋建立本機子單」。原草稿仍保留，不會移轉母單。</p><div class="actions"><button id="newDraft" class="light">＋建立本機子單</button><button id="reload" class="light">更新母單清單</button></div></section><section class="card"><h2>本機未送出子單</h2><div id="localList">${local.length?local.map(x=>`<div class="item">${esc(masterLabel(x.masterId))}｜子單 ${esc(localNo(x))}｜${clock(x.updatedLocal)}｜${x.items.length} 筆 <button class="light" data-open="${esc(x.key)}">開啟</button></div>`).join(''):'目前沒有本機草稿'}</div></section>${draft?`<section class="card"><h2>清點品項（本機）</h2><div class="muted">母單：${esc(masterLabel(draft.masterId))}｜子單流水碼：${esc(localNo(draft))}</div><label>捐贈者／母單名稱（由幹部設定）</label><div class="readonly-field">${esc(masters[draft.masterId]?.donor||masters[draft.masterId]?.title||'未設定')}</div><label>清點備註（選填）</label><textarea id="memo">${esc(draft.note)}</textarea><div id="rows">${draft.items.map(itemRow).join('')}</div><h3>倉別／品號加總（明細不合併）</h3><div id="sum">${totals(draft.items)}</div><div class="actions"><button id="add" class="light">＋新增一筆</button><button id="save" class="light">儲存本機草稿</button><button id="send">正式送出子單</button></div></section>`:''}`;
  $('#logout').onclick=()=>auth.signOut();$('#reload').onclick=()=>withBusy(async()=>{const selected=$('#choose')?.value||'';if(draft)await saveLocal();await renderVolunteer();if(selected&&masters[selected]?.status==='open')$('#choose').value=selected;});$('#newDraft').onclick=()=>withBusy(async()=>{const target=$('#choose').value;if(!target||masters[target]?.status!=='open')throw Error('請先選擇開放中的母單');if(draft){await saveLocal();if(target!==draft.masterId&&!confirm('目前草稿將保留在原母單，並為所選母單建立另一張全新的子單。確定繼續？'))return;}await startDraft(target)});document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>withBusy(async()=>{if(draft)await saveLocal();draft=await store('readonly',b.dataset.open);await renderVolunteer()}));
- if(!draft)return;$('#choose').disabled=false;async function appendRow(){capture();draft.items.push(blank());await persist();const rows=$('#rows');rows.insertAdjacentHTML('beforeend',itemRow(draft.items.at(-1),draft.items.length-1));return rows.lastElementChild.querySelector('[data-k=sku]')}
+ if(!draft)return;$('#choose').disabled=false;mcRefreshMarks();async function appendRow(){capture();draft.items.push(blank());await persist();const rows=$('#rows');rows.insertAdjacentHTML('beforeend',itemRow(draft.items.at(-1),draft.items.length-1));mcRefreshMarks();return rows.lastElementChild.querySelector('[data-k=sku]')}
  $('#add').onclick=()=>withBusy(async()=>{const next=await appendRow();next.focus({preventScroll:true})});$('#save').onclick=()=>withBusy(saveLocal);$('#send').onclick=()=>withBusy(performSubmit);
  $('#rows').onclick=e=>{const b=e.target.closest('[data-remove]');if(!b)return;if(draft.items.length===1)return note('至少保留一列');capture();draft.items.splice(Number(b.dataset.remove),1);persist().then(renderVolunteer)};
- let timer;app.oninput=e=>{if(!draft||!(e.target.closest('#rows')||e.target.id==='memo'))return;if(e.target.matches('[data-k]')&&e.target.dataset.k!=='warehouse'){const limit=e.target.dataset.k==='sku'?2:e.target.dataset.k==='expiry'?6:9;e.target.value=e.target.value.replace(/\D/g,'').slice(0,limit)}capture();$('#sum').innerHTML=totals(draft.items);clearTimeout(timer);timer=setTimeout(()=>persist().catch(ex=>note('本機儲存失敗：'+errtxt(ex),true)),250)};
- async function stepNext(input){const line=input.closest('.line');const field=input.dataset.k;if(field==='sku'||field==='quantity'){const next=line.querySelector(`[data-k=${field==='sku'?'quantity':'expiry'}]`);next?.focus({preventScroll:true});return}if(field==='expiry'){const sku=line.querySelector('[data-k=sku]')?.value||'',qty=line.querySelector('[data-k=quantity]')?.value||'',expiry=line.querySelector('[data-k=expiry]')?.value||'';if(!/^\d{2}$/.test(sku)||!/^\d+$/.test(qty)||!Number.isSafeInteger(Number(qty))||Number(qty)>100000000||!/^20\d{2}(0[1-9]|1[0-2])$/.test(expiry)){note('這筆清點尚未完整：請確認品號 2 碼、數量及效期 YYYYMM。',true);return}const existing=line.nextElementSibling?.querySelector('[data-k=sku]');if(existing){existing.focus({preventScroll:true});return}const next=await appendRow();next.focus({preventScroll:true})}}
+ let timer;app.oninput=e=>{if(!draft||!(e.target.closest('#rows')||e.target.id==='memo'))return;if(e.target.matches('[data-k]')&&e.target.dataset.k!=='warehouse'){const limit=e.target.dataset.k==='sku'?2:e.target.dataset.k==='expiry'?6:9;e.target.value=e.target.value.replace(/\D/g,'').slice(0,limit)}capture();if(e.target.matches('[data-k]'))mcMarkField(e.target);$('#sum').innerHTML=totals(draft.items);clearTimeout(timer);timer=setTimeout(()=>persist().catch(ex=>note('本機儲存失敗：'+errtxt(ex),true)),250)};
+ async function stepNext(input){mcMarkField(input,true);if(mcFieldIssue(input.dataset.k,input.value,true)&&!mcFieldIssue(input.dataset.k,input.value,true).startsWith('效期已過期'))return note(mcFieldIssue(input.dataset.k,input.value,true),true);const line=input.closest('.line');const field=input.dataset.k;if(field==='sku'||field==='quantity'){const next=line.querySelector(`[data-k=${field==='sku'?'quantity':'expiry'}]`);next?.focus({preventScroll:true});return}if(field==='expiry'){const sku=line.querySelector('[data-k=sku]')?.value||'',qty=line.querySelector('[data-k=quantity]')?.value||'',expiry=line.querySelector('[data-k=expiry]')?.value||'';if(!/^\d{2}$/.test(sku)||!/^\d+$/.test(qty)||!Number.isSafeInteger(Number(qty))||Number(qty)>100000000||!/^20\d{2}(0[1-9]|1[0-2])$/.test(expiry)){note('這筆清點尚未完整：請確認品號 2 碼、數量及效期 YYYYMM。',true);return}const existing=line.nextElementSibling?.querySelector('[data-k=sku]');if(existing){existing.focus({preventScroll:true});return}const next=await appendRow();next.focus({preventScroll:true})}}
  app.onkeydown=e=>{if(e.key!=='Enter'||!e.target.matches('[data-k]'))return;e.preventDefault();stepNext(e.target).catch(ex=>note('切換下一格失敗：'+errtxt(ex),true))};
  app.onclick=e=>{const b=e.target.closest('[data-next]');if(!b||!draft)return;const input=b.closest('.line')?.querySelector(`[data-k=${b.dataset.next}]`);if(input)stepNext(input).catch(ex=>note('切換下一格失敗：'+errtxt(ex),true))};
 }
@@ -77,6 +107,7 @@ function mcPad(){let el=document.getElementById('mc-fixed-pad');if(el)return el;
  document.body.appendChild(el);
  el.addEventListener('pointerdown',e=>{if(e.target.closest('button'))e.preventDefault()});
  el.addEventListener('click',async e=>{const b=e.target.closest('[data-pad]');if(!b)return;const k=b.dataset.pad;if(k==='hide'){mcHidePad();return}let inp=mcPadInput;if(!inp?.isConnected){mcHidePad();return}if(k==='next'){
+  mcMarkField(inp,true);const issue=mcFieldIssue(inp.dataset.k,inp.value,true);if(issue&&!issue.startsWith('效期已過期')){note(issue,true);return}
   const line=inp.closest('.line');let next=null;
   if(inp.dataset.k==='sku')next=line.querySelector('[data-k="quantity"]');
   else if(inp.dataset.k==='quantity')next=line.querySelector('[data-k="expiry"]');
@@ -91,7 +122,7 @@ function mcPad(){let el=document.getElementById('mc-fixed-pad');if(el)return el;
  }
  const max=inp.dataset.k==='sku'?2:inp.dataset.k==='expiry'?6:9;
  inp.value=k==='del'?inp.value.slice(0,-1):(inp.value.length<max?inp.value+k:inp.value);
- inp.dispatchEvent(new Event('input',{bubbles:true}));mcUpdatePad();
+ inp.dispatchEvent(new Event('input',{bubbles:true}));mcMarkField(inp);mcUpdatePad();
  });return el;
 }
 // Keep the newly selected input visible above the anchored on-screen keypad.
@@ -113,20 +144,20 @@ function mcRevealField(input){
   if(delta!==0)window.scrollBy({top:delta,behavior:'instant'});
  }));
 }
-function mcHidePad(){const pad=document.getElementById('mc-fixed-pad');if(pad)pad.hidden=true;document.body.classList.remove('mc-keypad-open');mcPadInput=null}
+function mcHidePad(){mcActiveMark(null);const pad=document.getElementById('mc-fixed-pad');if(pad)pad.hidden=true;document.body.classList.remove('mc-keypad-open');mcPadInput=null}
 function mcUpdatePad(){const p=mcPad();if(!mcPadInput)return;
  const names={sku:'品號（2 碼）',quantity:'數量',expiry:'效期（YYYYMM）'};
  p.querySelector('#mc-pad-caption').textContent=names[mcPadInput.dataset.k]||'數字';
  p.querySelector('[data-pad="next"]').textContent=mcPadInput.dataset.k==='expiry'?'✓ 新增下一筆':'下一格 →';
 }
 function mcSetPadInput(input){if(!mcTouchPad()||!input?.matches('#rows [data-k="sku"],#rows [data-k="quantity"],#rows [data-k="expiry"]'))return;
- mcPadInput=input;input.readOnly=true;mcPad().hidden=false;document.body.classList.add('mc-keypad-open');mcUpdatePad();
+ mcPadInput=input;mcActiveMark(input);input.readOnly=true;mcPad().hidden=false;document.body.classList.add('mc-keypad-open');mcUpdatePad();
 }
 if(!isAdmin){
  document.addEventListener('pointerdown',e=>{const input=e.target.closest('#rows input[data-k]');if(input&&mcTouchPad()){
   input.readOnly=true;mcSetPadInput(input);
  }},true);
- document.addEventListener('focusin',e=>{if(e.target.matches?.('#rows input[data-k]')&&mcTouchPad())mcSetPadInput(e.target)});
+ document.addEventListener('focusin',e=>{if(e.target.matches?.('#rows input[data-k]')){mcActiveMark(e.target);mcMarkField(e.target);if(mcTouchPad())mcSetPadInput(e.target)}});
  document.addEventListener('click',e=>{if(e.target.closest('#logout,#send,#save,#newDraft,[data-open]'))mcHidePad()},true);
 }
 async function adminData(){await loadMasters();children=(await db.ref(root+'/childOrders').once('value')).val()||{};approvals=(await db.ref(root+'/approvals').once('value')).val()||{}}

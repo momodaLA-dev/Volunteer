@@ -18,3 +18,14 @@
 
 /* MC1.4: one Next control at bottom keypad; preserve room to reveal new input above it. */
 @media(max-width:650px) and (pointer:coarse){body.mc-keypad-open{padding-bottom:calc(370px + env(safe-area-inset-bottom))}.line{scroll-margin-top:90px}}
+
+/* MC1.7: active row + field feedback; no change to data model or Firebase writes */
+.mc-row-heading{grid-column:1/-1;font-weight:700;font-size:13px;color:#43776b;padding:5px 7px;background:#f1f7f3;border-radius:6px}
+.line.mc-current-line{background:#f3faf7;outline:2px solid #268978;outline-offset:2px;border-radius:8px;padding:8px}
+#rows input.mc-active{border:3px solid #16766a!important;background:#ecfff5!important;box-shadow:0 0 0 3px #81cfac77!important}
+#rows input.mc-invalid{border:2px solid #c73737!important;background:#fff2f1!important;box-shadow:0 0 0 2px #edaaaa55}
+#rows input.mc-expired{border:2px solid #c73737!important;background:#fff2f1!important}
+.mc-field-feedback{color:#b32626;font-size:12px;font-weight:650;line-height:1.4;margin-top:4px}
+.mc-field-feedback:empty{display:none}
+.mc-field-feedback.mc-expired-text{color:#b32626}
+@media(max-width:650px){.mc-row-heading{grid-column:1/-1}.mc-field-feedback{font-size:12px}}
