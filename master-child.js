@@ -28,12 +28,25 @@ function validate(){capture();if(!draft.masterId||masters[draft.masterId]?.statu
 async function performSubmit(){await loadMasters();const rows=validate();await persist();if(!confirm('確認正式送出？送出後原始資料不可修改。'))return;
  // Deterministic server key per local draft: retry always addresses the same immutable child.
  const childId=draft.clientId;const ref=db.ref(`${root}/childOrders/${draft.masterId}/${childId}`);
- let before=null;try{before=(await ref.once('value')).val()}catch(e){throw Error('無法確認是否已送出，請恢復網路後再試：'+errtxt(e))}
- if(before){if(before.uid===uid()&&before.clientId===childId&&before.masterId===draft.masterId&&before.state==='submitted'){if(JSON.stringify(before.items)!==JSON.stringify(rows))throw Error('雲端已收到此單號，但內容與目前手機不同；請聯絡幹部核對，不能重新覆寫');draft.status='submitted';await persist();return note('此子單已在雲端，沒有重複建立。單號：'+before.displayNo)}throw Error('子單號衝突；未覆寫任何資料')}
- const master=masters[draft.masterId];const payload={uid:uid(),clientId,masterId:draft.masterId,displayNo:master.displayNo+'-'+new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14)+'-'+childId.slice(0,6).toUpperCase(),donor:draft.donor,note:draft.note,items:rows,state:'submitted',submittedAt:firebase.database.ServerValue.TIMESTAMP,schemaVersion:1};
- // create-only; the callback may initially see null due to local cache, so rely on server transaction result + receipt.
- let result;try{result=await ref.transaction(v=>v===null?payload:undefined,undefined,false)}catch(e){throw Error('雲端送出未確認，原單保留。'+errtxt(e))}
- const received=(await ref.once('value')).val();if(!received||received.uid!==uid()||received.clientId!==childId||received.masterId!==draft.masterId||received.state!=='submitted'||JSON.stringify(received.items)!==JSON.stringify(rows)||!Number.isFinite(received.submittedAt))throw Error('尚未取得完整雲端回執，保留手機原始草稿，請稍後再次檢查');
+ // A newly created child has no owner UID yet. Firebase rules intentionally deny
+ // volunteer reads of nonexistent child paths; do NOT pre-read or transaction-read it.
+ // Write once with set(); the server-side !data.exists() rule enforces create-only.
+ const master=masters[draft.masterId];
+ const payload={uid:uid(),clientId,masterId:draft.masterId,displayNo:master.displayNo+'-'+new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14)+'-'+childId.slice(0,6).toUpperCase(),donor:draft.donor,note:draft.note,items:rows,state:'submitted',submittedAt:firebase.database.ServerValue.TIMESTAMP,schemaVersion:1};
+ let writeError=null;
+ try{await ref.set(payload)}catch(e){writeError=e}
+ // A network interruption or a rejected repeat write does not prove that the
+ // original attempt failed. Read the receipt after attempting the write.
+ let received=null,receiptError=null;
+ try{received=(await ref.once('value')).val()}catch(e){receiptError=e}
+ if(received){
+  const same=received.uid===uid()&&received.clientId===childId&&received.masterId===draft.masterId&&received.state==='submitted'&&JSON.stringify(received.items)===JSON.stringify(rows)&&Number.isFinite(received.submittedAt);
+  if(!same)throw Error('雲端已有此子單號，但內容與本機不同；保留本機資料，請幹部核對。');
+ }else{
+  if(writeError)throw Error('尚未確認送出。'+errtxt(writeError)+'；本機資料保留，請確認母單仍開放並重試。');
+  if(receiptError)throw Error('送出後無法讀取雲端回執：'+errtxt(receiptError)+'；本機資料保留，請恢復網路後重試。');
+  throw Error('尚未取得雲端回執；本機資料保留，請稍後重試。');
+ }
  draft.status='submitted';draft.serverId=childId;await persist();note('雲端已確認收到子單：'+received.displayNo+'（待幹部審核）');renderVolunteer();
 }
 async function withBusy(fn){if(busy)return;busy=true;document.querySelectorAll('button').forEach(x=>x.disabled=true);try{await fn()}catch(e){note('操作未完成：'+errtxt(e),true)}finally{busy=false;document.querySelectorAll('button').forEach(x=>x.disabled=false)}}
