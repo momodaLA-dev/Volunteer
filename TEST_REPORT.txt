@@ -1,0 +1,3 @@
+Static checks: JavaScript syntax (node --check); JSON parse of V10_RULES_FRAGMENT.json; ZIP CRC verification.
+NOT YET TESTED: Firebase Security Rules emulator, real Firebase Auth/RTDB writes, iOS/Android IndexedDB persistence, multi-device E2E, mobile keyboard behavior.
+No existing production files are overwritten in this package.

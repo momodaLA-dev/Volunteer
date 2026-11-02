@@ -1,0 +1,38 @@
+{
+  "v10": {
+    "masterOrders": {
+      ".read": "auth != null",
+      "$masterId": {
+        ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin' && !data.exists()",
+        ".validate": "newData.hasChildren(['id','displayNo','title','status','createdBy','createdAt']) && newData.child('id').val() === $masterId && newData.child('createdBy').val() === auth.uid && newData.child('createdAt').isNumber() && newData.child('title').isString() && newData.child('title').val().length <= 100 && newData.child('displayNo').isString() && newData.child('status').val() === 'open' || (data.exists() && newData.child('status').val() === 'closed' && data.child('status').val() === 'open' && newData.child('id').val() === data.child('id').val() && newData.child('createdBy').val() === data.child('createdBy').val() && newData.child('createdAt').val() === data.child('createdAt').val() && newData.child('title').val() === data.child('title').val())",
+        "status": {
+          ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin' && data.val() === 'open' && newData.val() === 'closed'"
+        }
+      }
+    },
+    "childOrders": {
+      ".read": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
+      "$masterId": {
+        "$childId": {
+          ".read": "auth != null && (root.child('roles').child(auth.uid).val() === 'admin' || data.child('uid').val() === auth.uid)",
+          ".write": "auth != null && !data.exists() && root.child('masterOrders').child($masterId).child('status').val() === 'open' && newData.child('uid').val() === auth.uid && newData.child('clientId').val() === $childId",
+          ".validate": "newData.hasChildren(['uid','clientId','masterId','displayNo','items','state','submittedAt','schemaVersion']) && newData.child('uid').val() === auth.uid && newData.child('masterId').val() === $masterId && newData.child('clientId').val() === $childId && newData.child('state').val() === 'submitted' && newData.child('submittedAt').isNumber() && newData.child('schemaVersion').val() === 1 && newData.child('items').hasChildren() && newData.child('items').numChildren() <= 300 && newData.child('displayNo').isString() && newData.child('donor').isString() && newData.child('donor').val().length <= 200 && newData.child('note').isString() && newData.child('note').val().length <= 300",
+          "items": {
+            "$i": {
+              ".validate": "newData.hasChildren(['warehouse','sku','quantity','expiry']) && (newData.child('warehouse').val() === '008倉' || newData.child('warehouse').val() === '0089倉' || newData.child('warehouse').val() === '0088倉') && newData.child('sku').isString() && newData.child('sku').val().matches(/^[0-9]{2}$/) && newData.child('quantity').isNumber() && newData.child('quantity').val() >= 0 && newData.child('quantity').val() <= 100000000 && newData.child('expiry').isString() && newData.child('expiry').val().matches(/^20[0-9]{2}(0[1-9]|1[0-2])$/)"
+            }
+          }
+        }
+      }
+    },
+    "approvals": {
+      ".read": "auth != null && root.child('roles').child(auth.uid).val() === 'admin'",
+      "$masterId": {
+        "$childId": {
+          ".write": "auth != null && root.child('roles').child(auth.uid).val() === 'admin' && !data.exists() && root.child('childOrders').child($masterId).child($childId).exists()",
+          ".validate": "newData.hasChildren(['decision','reviewedBy','reviewedAt']) && (newData.child('decision').val() === 'approved' || newData.child('decision').val() === 'excluded') && newData.child('reviewedBy').val() === auth.uid && newData.child('reviewedAt').isNumber()"
+        }
+      }
+    }
+  }
+}
