@@ -15,3 +15,6 @@
  .mc-pad-grid .mc-pad-del{font-size:23px;background:#dce9e4}
  #rows input[data-k="sku"],#rows input[data-k="quantity"],#rows input[data-k="expiry"]{caret-color:transparent}
 }
+
+/* MC1.4: one Next control at bottom keypad; preserve room to reveal new input above it. */
+@media(max-width:650px) and (pointer:coarse){body.mc-keypad-open{padding-bottom:calc(370px + env(safe-area-inset-bottom))}.line{scroll-margin-top:90px}}

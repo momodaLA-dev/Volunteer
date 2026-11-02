@@ -20,7 +20,7 @@ async function persist(){if(!draft)return;draft.updatedLocal=Date.now();await st
 async function loadMasters(){masters=(await db.ref(root+'/masterOrders').once('value')).val()||{}}
 function masterOptions(selected){return Object.entries(masters).filter(([,m])=>m.status==='open'||m.status==='closed'&&m.id===selected).map(([k,m])=>`<option value="${esc(k)}" ${k===selected?'selected':''} ${m.status==='open'?'':'disabled'}>${esc(m.displayNo+'｜'+m.title+'（'+(m.status==='open'?'開放收件':'已停止收件')+'）')}</option>`).join('')}
 async function startDraft(masterId){if(!masterId||masters[masterId]?.status!=='open')throw Error('請先選擇開放中的母單');draft={key:uid()+':'+crypto.randomUUID(),uid:uid(),masterId,clientId:crypto.randomUUID(),status:'local',donor:(masters[masterId]?.donor||masters[masterId]?.title||''),note:'',items:[blank()],createdLocal:Date.now(),updatedLocal:Date.now()};await persist();renderVolunteer()}
-function itemRow(r,i){return `<div class="line" data-i="${i}"><div><label>倉別</label><select data-k="warehouse">${warehouses.map(w=>`<option ${r.warehouse===w?'selected':''}>${w}</option>`).join('')}</select></div><div><label>品號（2碼）</label><input data-k="sku" type="text" pattern="[0-9]*" inputmode="numeric" enterkeyhint="next" maxlength="2" value="${esc(r.sku)}" placeholder="08"><button type="button" class="next-btn light" data-next="sku">下一格 →</button></div><div><label>數量</label><input data-k="quantity" type="text" pattern="[0-9]*" inputmode="numeric" enterkeyhint="next" value="${esc(r.quantity)}" placeholder="111"><button type="button" class="next-btn light" data-next="quantity">下一格 →</button></div><div><label>效期 YYYYMM</label><input data-k="expiry" type="text" pattern="[0-9]*" inputmode="numeric" enterkeyhint="done" maxlength="6" value="${esc(r.expiry)}" placeholder="202701"><button type="button" class="next-btn light" data-next="expiry">✓ 下一筆</button></div><button type="button" class="light" data-remove="${i}">刪除</button></div>`}
+function itemRow(r,i){return `<div class="line" data-i="${i}"><div><label>倉別</label><select data-k="warehouse">${warehouses.map(w=>`<option ${r.warehouse===w?'selected':''}>${w}</option>`).join('')}</select></div><div><label>品號（2碼）</label><input data-k="sku" type="text" pattern="[0-9]*" inputmode="numeric" enterkeyhint="next" maxlength="2" value="${esc(r.sku)}" placeholder="08"></div><div><label>數量</label><input data-k="quantity" type="text" pattern="[0-9]*" inputmode="numeric" enterkeyhint="next" value="${esc(r.quantity)}" placeholder="111"></div><div><label>效期 YYYYMM</label><input data-k="expiry" type="text" pattern="[0-9]*" inputmode="numeric" enterkeyhint="done" maxlength="6" value="${esc(r.expiry)}" placeholder="202701"></div><button type="button" class="light" data-remove="${i}">刪除</button></div>`}
 function totals(items){const groups=new Map();for(const r of items){if(!/^\d{2}$/.test(r.sku)||!/^\d+$/.test(String(r.quantity)))continue;const n=Number(r.quantity);if(!Number.isSafeInteger(n)||n<0)continue;const key=r.warehouse+'|'+r.sku,cur=groups.get(key)||{w:r.warehouse,s:r.sku,n:0,total:0};if(!Number.isSafeInteger(cur.total+n))continue;cur.n++;cur.total+=n;groups.set(key,cur)}return `<div class="scroll"><table><thead><tr><th>倉別</th><th>品號</th><th>筆數</th><th>合計</th></tr></thead><tbody>${[...groups.values()].map(x=>`<tr><td>${esc(x.w)}</td><td>${esc(x.s)}</td><td>${x.n}</td><td>${x.total}</td></tr>`).join('')}</tbody></table></div>`}
 function capture(){if(!draft)return;draft.items=[...document.querySelectorAll('.line')].map(el=>Object.fromEntries([...el.querySelectorAll('[data-k]')].map(f=>[f.dataset.k,f.value])));draft.donor=(masters[draft.masterId]?.donor||masters[draft.masterId]?.title||'');draft.note=$('#memo')?.value||''}
 async function saveLocal(){capture();await persist();note('已儲存於此手機（未上傳雲端）。')}
@@ -82,12 +82,31 @@ function mcPad(){let el=document.getElementById('mc-fixed-pad');if(el)return el;
    if(following)next=following;
    else { const add=document.getElementById('add'); if(add){add.click();await new Promise(resolve=>setTimeout(resolve,50));next=document.querySelector('#rows .line:last-child [data-k="sku"]')} }
   }
-  if(next){mcSetPadInput(next);next.focus({preventScroll:true})}return;
+  if(next){mcSetPadInput(next);next.focus({preventScroll:true});mcRevealField(next)}return;
  }
  const max=inp.dataset.k==='sku'?2:inp.dataset.k==='expiry'?6:9;
  inp.value=k==='del'?inp.value.slice(0,-1):(inp.value.length<max?inp.value+k:inp.value);
  inp.dispatchEvent(new Event('input',{bubbles:true}));mcUpdatePad();
  });return el;
+}
+// Keep the newly selected input visible above the anchored on-screen keypad.
+function mcRevealField(input){
+ if(!input||!input.isConnected||!mcTouchPad())return;
+ requestAnimationFrame(()=>requestAnimationFrame(()=>{
+  if(!input.isConnected)return;
+  const pad=document.getElementById('mc-fixed-pad');
+  const padTop=pad&&!pad.hidden?pad.getBoundingClientRect().top:window.innerHeight;
+  const r=input.getBoundingClientRect();
+  // On a new line, also reveal its warehouse selector and label.
+  const line=input.closest('.line');
+  const top=line?line.getBoundingClientRect().top:r.top;
+  const availableBottom=padTop-18;
+  const desiredTop=96;
+  let delta=0;
+  if(r.bottom>availableBottom||top<desiredTop){delta=top-desiredTop;}
+  // scrolling downward for a new line should never leave it underneath the pad
+  if(delta!==0)window.scrollBy({top:delta,behavior:'instant'});
+ }));
 }
 function mcHidePad(){const pad=document.getElementById('mc-fixed-pad');if(pad)pad.hidden=true;document.body.classList.remove('mc-keypad-open');mcPadInput=null}
 function mcUpdatePad(){const p=mcPad();if(!mcPadInput)return;
